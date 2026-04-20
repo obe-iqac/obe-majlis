@@ -1,6 +1,6 @@
 import User from "../model/user.js";
 import bcrypt from "bcrypt";
-import { generateToken } from "../utilities/token.js";
+import { generateToken, verifyToken } from "../utilities/token.js";
 export const verifyCode = async (req, res) => {
   try {
     let { code } = req.body;
@@ -103,6 +103,24 @@ export const login = async (req, res) => {
         message: "Login successful",
         role: user.role, // optional (for frontend routing)
       });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+export const verifyAuthToken = async (req, res) => {
+  try {
+    const token = req.headers.cookie?.split("=")[1];
+    if (!token) {
+      return res.status(401).json({ valid: false, message: "No token found" });
+    }
+    // If auth middleware passed, token is valid and user info is in req.user
+    const decoded = verifyToken(token);
+    return res.status(200).json({
+      valid: true,
+      role: decoded.role,
+      collegeId: decoded.collegeId,
+      departmentId: decoded.departmentId,
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
