@@ -19,6 +19,9 @@ import connectDb from "./config/db.js";
 // Parses form data like: name=test&email=a@gmail.com
 import bodyParser from "body-parser";
 
+// Importing routes
+import authRoutes from "./routes/auth.route.js";
+
 // Load all variables from .env into process.env
 dotenv.config();
 
@@ -42,6 +45,7 @@ app.use(cookieParser());
 // Allows server to read form submitted data
 app.use(bodyParser.urlencoded({ extended: true }));
 
+app.use("/auth", authRoutes);
 // Test route to check server is running
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "test" });
