@@ -1,0 +1,1 @@
+create sessions for wotking on multiple dbs at once

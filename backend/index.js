@@ -21,6 +21,9 @@ import bodyParser from "body-parser";
 
 // Importing routes
 import authRoutes from "./routes/auth.route.js";
+import superAdminRoutes from "./routes/superAdmin.routes.js";
+import { authMiddleware } from "./middleware/auth.middleware.js";
+import { allowRoles } from "./middleware/role.middleware.js";
 
 // Load all variables from .env into process.env
 dotenv.config();
@@ -46,6 +49,12 @@ app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use("/auth", authRoutes);
+app.use(
+  "/super_admin",
+  authMiddleware,
+  allowRoles("SUPER_ADMIN"),
+  superAdminRoutes,
+);
 // Test route to check server is running
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "test" });
