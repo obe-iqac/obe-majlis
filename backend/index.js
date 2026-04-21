@@ -56,6 +56,10 @@ app.use(
   superAdminRoutes,
 );
 // Test route to check server is running
+app.get("/ping", (req, res) => {
+  console.log("Received ping request");
+  res.json({ status: "ok", message: "ping successfull" });
+});
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "test" });
 });
