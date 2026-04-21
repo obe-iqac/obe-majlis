@@ -1,6 +1,7 @@
 "use client";
 
 import { SERVER_URL } from "@/constants";
+import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 type Step = "code" | "setPassword" | "login";
@@ -13,6 +14,7 @@ type VerifyCodeResponse = {
 
 type ApiMessageResponse = {
   message?: string;
+  role?: string;
 };
 
 export default function Home() {
@@ -24,6 +26,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const router = useRouter();
   const stepLabel = useMemo(() => {
     if (step === "setPassword") return "Set Password";
     if (step === "login") return "Enter Password";
@@ -159,6 +162,7 @@ export default function Home() {
       }
 
       setSuccess(data.message ?? "Login successful.");
+      router.push(data.role?.toLowerCase() || "/");
       setPassword("");
     } catch {
       setError("Unable to log in right now. Please try again.");

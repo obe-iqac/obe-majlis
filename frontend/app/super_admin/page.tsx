@@ -11,6 +11,7 @@ type College = {
   trialEndsAt: string | null;
   subscriptionEndsAt: string | null;
   createdBy?: string;
+  code: string;
 };
 
 type CollegeForm = {
@@ -19,7 +20,7 @@ type CollegeForm = {
   isActive: boolean;
   trialEndsAt: string;
   subscriptionEndsAt: string;
-  loginCode: string;
+  code: string;
 };
 
 const initialForm: CollegeForm = {
@@ -28,7 +29,7 @@ const initialForm: CollegeForm = {
   isActive: true,
   trialEndsAt: "",
   subscriptionEndsAt: "",
-  loginCode: " ",
+  code: " ",
 };
 
 const SUPER_ADMIN_BASE = `${SERVER_URL}/super_admin`;
@@ -71,7 +72,7 @@ export default function SuperAdminPage() {
       });
 
       const data = (await response.json().catch(() => ({}))) as {
-        colleges?: College[];
+        collegeWithCode?: College[];
         message?: string;
       };
 
@@ -80,7 +81,7 @@ export default function SuperAdminPage() {
         return;
       }
 
-      const normalized = (data.colleges || []).map((college) => ({
+      const normalized = (data.collegeWithCode || []).map((college) => ({
         ...college,
         trialEndsAt: formatDateForInput(college.trialEndsAt),
         subscriptionEndsAt: formatDateForInput(college.subscriptionEndsAt),
@@ -103,11 +104,17 @@ export default function SuperAdminPage() {
     field: keyof College,
     value: string | boolean,
   ) => {
+    console.log(id, field, value);
     setColleges((prev) =>
       prev.map((college) =>
         college._id === id ? { ...college, [field]: value } : college,
       ),
     );
+  };
+  const getISODateAfterDays = (days: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString();
   };
 
   const handleSaveCollege = async (college: College) => {
@@ -128,6 +135,7 @@ export default function SuperAdminPage() {
             isActive: college.isActive,
             trialEndsAt: toPayloadDate(college.trialEndsAt || ""),
             subscriptionEndsAt: toPayloadDate(college.subscriptionEndsAt || ""),
+            code: college.code,
           }),
         },
       );
@@ -148,6 +156,40 @@ export default function SuperAdminPage() {
       setRowLoadingId(null);
     }
   };
+  const handleDeleteCollege = async (_id: string) => {
+    setPageError("");
+    setPageSuccess("");
+    setRowLoadingId(_id);
+
+    try {
+      const response = await fetch(
+        `${SUPER_ADMIN_BASE}/delete-college/${_id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const data = (await response.json().catch(() => ({}))) as {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        setPageError(data.message || "Unable to delete college.");
+        return;
+      }
+
+      setPageSuccess("College details deleted successfully.");
+      setColleges((prev) => prev.filter((college) => college._id !== _id));
+    } catch {
+      setPageError("Unable to delete college right now.");
+    } finally {
+      setRowLoadingId(null);
+    }
+  };
 
   const handleAddCollege = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -157,7 +199,7 @@ export default function SuperAdminPage() {
     if (
       !newCollege.name.trim() ||
       !newCollege.AISHECode.trim() ||
-      !newCollege.loginCode.trim()
+      !newCollege.code.trim()
     ) {
       setPageError("Name, Login Code  and AISHE code are required.");
       return;
@@ -175,17 +217,17 @@ export default function SuperAdminPage() {
         body: JSON.stringify({
           name: newCollege.name.trim(),
           AISHECode: newCollege.AISHECode.trim(),
-          isActive: newCollege.isActive,
-          loginCode: newCollege.loginCode.trim(),
-          trialEndsAt: toPayloadDate(newCollege.trialEndsAt),
+          isActive: true,
+          code: newCollege.code.trim(),
+          trialEndsAt: getISODateAfterDays(14),
           subscriptionEndsAt: toPayloadDate(newCollege.subscriptionEndsAt),
         }),
       });
 
       const data = (await response.json().catch(() => ({}))) as {
-        message?: string;
+        message: string;
+        college: College;
       };
-
       if (!response.ok) {
         setPageError(data.message || "Unable to add college.");
         return;
@@ -194,7 +236,20 @@ export default function SuperAdminPage() {
       setPageSuccess("College added successfully.");
       setNewCollege(initialForm);
       setIsAddOpen(false);
-      await fetchColleges();
+      setColleges((prev) => [
+        ...prev,
+        {
+          _id: data.college._id,
+          name: newCollege.name.trim(),
+          AISHECode: newCollege.AISHECode.trim(),
+          isActive: true,
+          trialEndsAt: formatDateForInput(getISODateAfterDays(14)),
+          subscriptionEndsAt: formatDateForInput(
+            toPayloadDate(newCollege.subscriptionEndsAt),
+          ),
+          code: newCollege.code.trim(),
+        },
+      ]);
     } catch {
       setPageError("Unable to add college right now.");
     } finally {
@@ -297,11 +352,11 @@ export default function SuperAdminPage() {
                 </label>
                 <input
                   type="text"
-                  value={newCollege.loginCode}
+                  value={newCollege.code}
                   onChange={(event) =>
                     setNewCollege((prev) => ({
                       ...prev,
-                      loginCode: event.target.value,
+                      code: event.target.value,
                     }))
                   }
                   className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
@@ -313,17 +368,11 @@ export default function SuperAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Trial Ends At
                 </label>
-                <input
-                  type="date"
-                  value={newCollege.trialEndsAt}
-                  onChange={(event) =>
-                    setNewCollege((prev) => ({
-                      ...prev,
-                      trialEndsAt: event.target.value,
-                    }))
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
+                <p>
+                  {new Date(
+                    Date.now() + 14 * 24 * 60 * 60 * 1000,
+                  ).toLocaleDateString()}
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -343,23 +392,6 @@ export default function SuperAdminPage() {
                 />
               </div>
 
-              <div className="md:col-span-2 flex items-center justify-between rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-3 py-2">
-                <label className="text-sm font-medium text-slate-700">
-                  College Active
-                </label>
-                <input
-                  type="checkbox"
-                  checked={newCollege.isActive}
-                  onChange={(event) =>
-                    setNewCollege((prev) => ({
-                      ...prev,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 accent-secondary"
-                />
-              </div>
-
               <div className="md:col-span-2">
                 <button
                   type="submit"
@@ -376,14 +408,6 @@ export default function SuperAdminPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">Colleges</h2>
-            <button
-              type="button"
-              onClick={fetchColleges}
-              disabled={loading}
-              className="h-9 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:border-tertiary hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
           </div>
 
           {pageError && (
@@ -411,6 +435,16 @@ export default function SuperAdminPage() {
                 className="rounded-md border border-slate-200 bg-white p-4 transition hover:border-tertiary/50"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDeleteCollege(college._id);
+                    }}
+                    disabled={loading}
+                    className="h-9 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:border-tertiary hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Delete
+                  </button>
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">
                       {college.name}
@@ -419,50 +453,36 @@ export default function SuperAdminPage() {
                       AISHE: {college.AISHECode}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Created By: {college.createdBy || "N/A"}
+                      Trail ends on: {college.trialEndsAt || "N/A"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Active Status:{" "}
+                      {college.isActive === true ? "Active" : "Not Active"}
                     </p>
                   </div>
 
                   <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:max-w-2xl">
                     <div className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-3 py-2">
                       <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Is Active
+                        Login Code
                       </label>
                       <input
-                        type="checkbox"
-                        checked={college.isActive}
+                        type="text"
+                        value={college.code}
                         onChange={(event) =>
                           updateLocalCollege(
                             college._id,
-                            "isActive",
-                            event.target.checked,
-                          )
-                        }
-                        className="h-4 w-4 accent-secondary"
-                      />
-                    </div>
-
-                    <div className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-3 py-2">
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Trial Ends At
-                      </label>
-                      <input
-                        type="date"
-                        value={college.trialEndsAt || ""}
-                        onChange={(event) =>
-                          updateLocalCollege(
-                            college._id,
-                            "trialEndsAt",
+                            "code",
                             event.target.value,
                           )
                         }
-                        className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm outline-none transition focus:border-secondary"
+                        className=" accent-secondary"
                       />
                     </div>
 
                     <div className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-3 py-2">
                       <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Subscription Ends At
+                        Extend subscription to
                       </label>
                       <input
                         type="date"
