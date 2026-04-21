@@ -1,4 +1,4 @@
-import User from "../model/user.js";
+import User from "../model/User.js";
 import bcrypt from "bcrypt";
 import { generateToken, verifyToken } from "../utilities/token.js";
 export const verifyCode = async (req, res) => {

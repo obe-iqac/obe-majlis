@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import College from "../model/College.js";
-import User from "../model/user.js";
+import User from "../model/User.js";
 
 export const getAllColleges = async (req, res) => {
   try {
