@@ -46,15 +46,24 @@ const toPayloadDate = (value: string) => {
   return `${value}T00:00:00.000Z`;
 };
 
+const getISODateAfterDays = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+};
+
 export default function SuperAdminPage() {
   const [colleges, setColleges] = useState<College[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [pageSuccess, setPageSuccess] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
   const [newCollege, setNewCollege] = useState<CollegeForm>(initialForm);
+  const [trialEndsPreviewDate] = useState(() =>
+    formatDateForInput(getISODateAfterDays(14)),
+  );
 
   const activeCount = useMemo(
     () => colleges.filter((college) => college.isActive).length,
@@ -62,9 +71,6 @@ export default function SuperAdminPage() {
   );
 
   const fetchColleges = async () => {
-    setLoading(true);
-    setPageError("");
-
     try {
       const response = await fetch(`${SUPER_ADMIN_BASE}/get-all-colleges`, {
         method: "GET",
@@ -88,6 +94,7 @@ export default function SuperAdminPage() {
       }));
 
       setColleges(normalized);
+      setPageError("");
     } catch {
       setPageError("Unable to fetch colleges right now.");
     } finally {
@@ -96,6 +103,7 @@ export default function SuperAdminPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchColleges();
   }, []);
 
@@ -110,11 +118,6 @@ export default function SuperAdminPage() {
         college._id === id ? { ...college, [field]: value } : college,
       ),
     );
-  };
-  const getISODateAfterDays = (days: number) => {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date.toISOString();
   };
 
   const handleSaveCollege = async (college: College) => {
@@ -368,11 +371,7 @@ export default function SuperAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Trial Ends At
                 </label>
-                <p>
-                  {new Date(
-                    Date.now() + 14 * 24 * 60 * 60 * 1000,
-                  ).toLocaleDateString()}
-                </p>
+                <p>{trialEndsPreviewDate || "N/A"}</p>
               </div>
 
               <div className="space-y-1">

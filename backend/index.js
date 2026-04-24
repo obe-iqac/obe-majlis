@@ -22,6 +22,7 @@ import bodyParser from "body-parser";
 // Importing routes
 import authRoutes from "./routes/auth.route.js";
 import superAdminRoutes from "./routes/superAdmin.routes.js";
+import collegeAdminRoutes from "./routes/collegeAdmin.routes.js";
 import { authMiddleware } from "./middleware/auth.middleware.js";
 import { allowRoles } from "./middleware/role.middleware.js";
 
@@ -54,6 +55,12 @@ app.use(
   authMiddleware,
   allowRoles("SUPER_ADMIN"),
   superAdminRoutes,
+);
+app.use(
+  "/college_admin",
+  authMiddleware,
+  allowRoles("COLLEGE_ADMIN"),
+  collegeAdminRoutes,
 );
 // Test route to check server is running
 app.get("/ping", (req, res) => {

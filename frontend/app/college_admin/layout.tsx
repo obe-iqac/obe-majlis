@@ -31,7 +31,7 @@ export default async function SuperAdminLayout({
 
   const data = await res.json().catch(() => null);
 
-  if (!data || data.role !== "SUPER_ADMIN") {
+  if (!data || data.role !== "COLLEGE_ADMIN") {
     redirect("/");
   }
 

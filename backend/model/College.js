@@ -1,6 +1,25 @@
 // models/College.js
 import mongoose from "mongoose";
 
+const attainmentRangeSchema = new mongoose.Schema(
+  {
+    min: Number, // 0
+    max: Number, // 50
+    level: Number, // 1–5
+  },
+  { _id: false },
+);
+
+const attainmentConfigSchema = new mongoose.Schema(
+  {
+    directCOInternal: Number,
+    directCOExternal: Number,
+    indirectCOInternal: Number,
+    indirectCOExternal: Number,
+  },
+  { _id: false },
+);
+
 const collegeSchema = new mongoose.Schema({
   name: String,
 
@@ -9,17 +28,12 @@ const collegeSchema = new mongoose.Schema({
     unique: true,
   },
 
-  // 🔥 Manual control
   isActive: {
     type: Boolean,
     default: true,
   },
 
-  // 🔥 Trial / subscription
-  trialEndsAt: {
-    type: Date,
-  },
-
+  trialEndsAt: Date,
   subscriptionEndsAt: {
     type: Date,
     default: null,
@@ -29,7 +43,18 @@ const collegeSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
+
+  attainmentConfig: {
+    type: attainmentConfigSchema,
+    default: {},
+  },
+
+  attainmentRanges: {
+    type: [attainmentRangeSchema],
+    default: [],
+  },
 });
+
 const College =
   mongoose.models.College || mongoose.model("College", collegeSchema);
 
