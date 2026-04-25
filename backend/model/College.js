@@ -53,6 +53,15 @@ const collegeSchema = new mongoose.Schema({
     type: [attainmentRangeSchema],
     default: [],
   },
+  pos: {
+    type: [
+      {
+        id: String,
+        po: String,
+      },
+    ],
+    default: [],
+  },
 });
 
 const College =

@@ -19,8 +19,7 @@ type AttainmentRange = {
 
 type ProgramOutcome = {
   id: string;
-  label: string;
-  value: string;
+  po: string;
 };
 
 type Programme = {
@@ -81,6 +80,20 @@ const mergeOptionsWithCurrentValue = (
   }
 
   return [...options, currentValue].sort((left, right) => left - right);
+};
+
+const getNextPoId = (existingPos: ProgramOutcome[]) => {
+  const maxPoNumber = existingPos.reduce((maxSoFar, currentPo) => {
+    const matchedNumber = Number(currentPo.id.replace(/^PO/i, ""));
+
+    if (Number.isNaN(matchedNumber)) {
+      return maxSoFar;
+    }
+
+    return Math.max(maxSoFar, matchedNumber);
+  }, 0);
+
+  return `PO${maxPoNumber + 1}`;
 };
 
 const submitToBackend = async (
@@ -241,7 +254,25 @@ export default function CollegeAdminPage() {
       setMinLevel(configuredBounds.minLevel);
       setMaxLevel(configuredBounds.maxLevel);
       setAttainmentRanges(data.college?.attainmentRanges ?? []);
-      setPos(data.pos ?? []);
+      const fetchedPos = data.college?.pos ?? data.pos ?? [];
+      setPos(
+        fetchedPos
+          .map(
+            (
+              poItem: {
+                id?: string;
+                po?: string;
+                label?: string;
+                value?: string;
+              },
+              index: number,
+            ) => ({
+              id: poItem.id ?? poItem.label ?? `PO${index + 1}`,
+              po: poItem.po ?? poItem.value ?? "",
+            }),
+          )
+          .filter((poItem: ProgramOutcome) => Boolean(poItem.id && poItem.po)),
+      );
       setProgrammes(data.programmes ?? []);
       setHods(data.hods ?? []);
     }
@@ -330,7 +361,10 @@ export default function CollegeAdminPage() {
     event.preventDefault();
 
     const hasInvalidLevel = Object.values(attainmentValues).some(
-      (value) => !Number.isInteger(value) || value < 1 || value > 5,
+      (value) =>
+        !Number.isInteger(value) ||
+        value < Math.min(minLevel, maxLevel) ||
+        value > Math.max(minLevel, maxLevel),
     );
 
     if (hasInvalidLevel) {
@@ -359,6 +393,10 @@ export default function CollegeAdminPage() {
     const payload = {
       attainmentConfig: attainmentValues,
       attainmentRanges,
+      pos: pos.map((poItem) => ({
+        id: poItem.id,
+        po: poItem.po,
+      })),
       attainmentBounds: {
         minLevel,
         maxLevel,
@@ -376,7 +414,7 @@ export default function CollegeAdminPage() {
     }
   };
 
-  const handleAddPO = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAddPO = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newPOValue.trim()) {
@@ -384,26 +422,18 @@ export default function CollegeAdminPage() {
       return;
     }
 
+    const nextPOId = getNextPoId(pos);
     const nextPO: ProgramOutcome = {
-      id: `po-${pos.length + 1}`,
-      label: `PO${pos.length + 1}`,
-      value: newPOValue.trim(),
+      id: nextPOId,
+      po: newPOValue.trim(),
     };
 
-    setPageMessage("Adding program outcome...");
-
-    const result = await submitToBackend(
-      "/college_admin/program-outcomes",
-      { label: nextPO.label, value: nextPO.value },
-      setPageMessage,
+    const updatedPOs = [...pos, nextPO];
+    setPos(updatedPOs);
+    setNewPOValue("");
+    setPageMessage(
+      `${nextPO.id} added. Save attainment configuration to submit all POs.`,
     );
-
-    if (result.success) {
-      const updatedPOs = [...pos, nextPO];
-      setPos(updatedPOs);
-      setNewPOValue("");
-      setPageMessage(`${nextPO.label} added successfully!`);
-    }
   };
 
   const handleProgrammeCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -921,9 +951,9 @@ export default function CollegeAdminPage() {
                   className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
                 >
                   <p className="text-sm font-semibold text-slate-900">
-                    {po.label}
+                    {po.id}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">{po.value}</p>
+                  <p className="mt-1 text-sm text-slate-600">{po.po}</p>
                 </div>
               ))}
             </div>
