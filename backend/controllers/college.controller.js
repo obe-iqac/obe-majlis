@@ -60,8 +60,8 @@ export const updateCollegeAttainmentConfig = async (req, res) => {
         message: "College ID not found in user",
       });
     }
-    const { attainmentConfig, attainmentRanges } = req.body;
-    if (!attainmentConfig || !attainmentRanges) {
+    const { attainmentConfig, attainmentRanges, pos } = req.body;
+    if (!attainmentConfig || !attainmentRanges || !pos) {
       return res.status(400).json({
         status: "error",
         message: "Either Attainment config or Attainment range is required",
@@ -75,6 +75,7 @@ export const updateCollegeAttainmentConfig = async (req, res) => {
     }
     college.attainmentConfig = attainmentConfig;
     college.attainmentRanges = attainmentRanges;
+    college.pos = pos;
     await college.save();
     res
       .status(200)
