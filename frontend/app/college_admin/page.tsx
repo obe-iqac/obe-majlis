@@ -35,47 +35,91 @@ type Hod = {
   loginCode: string;
 };
 
-const initialAttainmentValues: AttainmentValues = {
-  directCOInternal: 3,
-  directCOExternal: 4,
-  indirectCOInternal: 3,
-  indirectCOExternal: 4,
+const ATTTAINMENT_BOUND_MIN = 1;
+const ATTTAINMENT_BOUND_MAX = 20;
+
+const generateNumericOptions = (min: number, max: number) => {
+  const lowerBound = Math.min(min, max);
+  const upperBound = Math.max(min, max);
+
+  return Array.from(
+    { length: upperBound - lowerBound + 1 },
+    (_, index) => lowerBound + index,
+  );
 };
 
-const initialAttainmentRanges: AttainmentRange[] = [
-  { id: "range-1", min: 0, max: 50, level: 1 },
-  { id: "range-2", min: 50, max: 70, level: 2 },
-  { id: "range-3", min: 70, max: 85, level: 3 },
-  { id: "range-4", min: 85, max: 100, level: 4 },
-];
+const generateAttainmentOptions = (min: number, max: number) =>
+  generateNumericOptions(min, max);
 
-const initialPOs: ProgramOutcome[] = [
-  { id: "po-1", label: "PO1", value: "Engineering knowledge" },
-  { id: "po-2", label: "PO2", value: "Problem analysis" },
-  { id: "po-3", label: "PO3", value: "Design and development" },
-];
+const getConfiguredAttainmentBounds = (
+  attainmentConfig?: Partial<AttainmentValues>,
+) => {
+  const configuredValues = Object.values(attainmentConfig ?? {}).filter(
+    (value): value is number =>
+      typeof value === "number" && !Number.isNaN(value),
+  );
 
-const initialProgrammes: Programme[] = [
-  { id: "programme-1", name: "B.Tech Computer Science", hodId: "hod-1" },
-  { id: "programme-2", name: "B.Tech Electronics", hodId: null },
-];
+  if (configuredValues.length === 0) {
+    return {
+      minLevel: 1,
+      maxLevel: 5,
+    };
+  }
 
-const initialHods: Hod[] = [
-  { id: "hod-1", name: "Dr. Meera Nair", loginCode: "HODCSE01" },
-  { id: "hod-2", name: "Prof. Arjun Rao", loginCode: "HODECE01" },
-];
-
-const logDummyEndpoint = (endpoint: string, payload: unknown) => {
-  console.log(`[DUMMY API] ${endpoint}`, payload);
+  return {
+    minLevel: Math.min(...configuredValues),
+    maxLevel: Math.max(...configuredValues),
+  };
 };
 
-const clampLevel = (value: number) =>
-  Math.min(5, Math.max(1, Math.trunc(value)));
+const mergeOptionsWithCurrentValue = (
+  options: number[],
+  currentValue: number,
+) => {
+  if (options.includes(currentValue)) {
+    return options;
+  }
 
-const clampPercentage = (value: number) =>
-  Math.min(100, Math.max(0, Math.trunc(value)));
+  return [...options, currentValue].sort((left, right) => left - right);
+};
 
-const validateAttainmentRanges = (ranges: AttainmentRange[]) => {
+const submitToBackend = async (
+  endpoint: string,
+  payload: unknown,
+  setPageMessage: (message: string) => void,
+) => {
+  try {
+    const response = await fetch(`${SERVER_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(
+        error.message || `Request failed with status ${response.status}`,
+      );
+    }
+
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "An error occurred";
+    setPageMessage(`Error: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+};
+
+const validateAttainmentRanges = (
+  ranges: AttainmentRange[],
+  minLevel: number,
+  maxLevel: number,
+) => {
   if (ranges.length === 0) {
     return "Add at least one attainment range.";
   }
@@ -93,8 +137,15 @@ const validateAttainmentRanges = (ranges: AttainmentRange[]) => {
       return "Each range must have Min % less than Max %.";
     }
 
-    if (!Number.isInteger(range.level) || range.level < 1 || range.level > 5) {
-      return "Attainment level must be an integer between 1 and 5.";
+    if (
+      !Number.isInteger(range.level) ||
+      range.level < Math.min(minLevel, maxLevel) ||
+      range.level > Math.max(minLevel, maxLevel)
+    ) {
+      return `Attainment level must be an integer between ${Math.min(
+        minLevel,
+        maxLevel,
+      )} and ${Math.max(minLevel, maxLevel)}.`;
     }
   }
 
@@ -125,26 +176,38 @@ const validateAttainmentRanges = (ranges: AttainmentRange[]) => {
 };
 
 export default function CollegeAdminPage() {
-  const [attainmentValues, setAttainmentValues] = useState<AttainmentValues>(
-    initialAttainmentValues,
-  );
+  const [attainmentValues, setAttainmentValues] = useState<AttainmentValues>({
+    directCOInternal: 1,
+    directCOExternal: 1,
+    indirectCOInternal: 1,
+    indirectCOExternal: 1,
+  });
   const [attainmentRanges, setAttainmentRanges] = useState<AttainmentRange[]>(
-    initialAttainmentRanges,
+    [],
   );
-  const [pos, setPos] = useState<ProgramOutcome[]>(initialPOs);
-  const [programmes, setProgrammes] = useState<Programme[]>(initialProgrammes);
-  const [hods, setHods] = useState<Hod[]>(initialHods);
+  const [pos, setPos] = useState<ProgramOutcome[]>([]);
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [hods, setHods] = useState<Hod[]>([]);
+  const [minLevel, setMinLevel] = useState(1);
+  const [maxLevel, setMaxLevel] = useState(5);
 
   const [newPOValue, setNewPOValue] = useState("");
   const [newProgrammeName, setNewProgrammeName] = useState("");
   const [newHod, setNewHod] = useState({ name: "", loginCode: "" });
   const [assignment, setAssignment] = useState({
-    programmeId: initialProgrammes[0]?.id ?? "",
-    hodId: initialHods[0]?.id ?? "",
+    programmeId: "",
+    hodId: "",
   });
   const [pageMessage, setPageMessage] = useState("");
   const [rangeValidationMessage, setRangeValidationMessage] = useState(
-    validateAttainmentRanges(initialAttainmentRanges),
+    validateAttainmentRanges(attainmentRanges, minLevel, maxLevel),
+  );
+
+  const attainmentOptions = generateAttainmentOptions(minLevel, maxLevel);
+  const percentageOptions = generateNumericOptions(0, 100);
+  const configuredBoundOptions = generateNumericOptions(
+    ATTTAINMENT_BOUND_MIN,
+    ATTTAINMENT_BOUND_MAX,
   );
   useEffect(() => {
     async function fetchInitialData() {
@@ -164,32 +227,72 @@ export default function CollegeAdminPage() {
         return;
       }
 
-      setAttainmentValues(data.attainmentValues ?? initialAttainmentValues);
-      setAttainmentRanges(data.attainmentRanges ?? initialAttainmentRanges);
-      setPos(data.pos ?? initialPOs);
-      setProgrammes(data.programmes ?? initialProgrammes);
-      setHods(data.hods ?? initialHods);
+      const collegeAttainmentConfig = data.college?.attainmentConfig ?? {};
+      const configuredBounds = getConfiguredAttainmentBounds(
+        collegeAttainmentConfig,
+      );
+
+      setAttainmentValues({
+        directCOInternal: collegeAttainmentConfig.directCOInternal ?? 1,
+        directCOExternal: collegeAttainmentConfig.directCOExternal ?? 1,
+        indirectCOInternal: collegeAttainmentConfig.indirectCOInternal ?? 1,
+        indirectCOExternal: collegeAttainmentConfig.indirectCOExternal ?? 1,
+      });
+      setMinLevel(configuredBounds.minLevel);
+      setMaxLevel(configuredBounds.maxLevel);
+      setAttainmentRanges(data.college?.attainmentRanges ?? []);
+      setPos(data.pos ?? []);
+      setProgrammes(data.programmes ?? []);
+      setHods(data.hods ?? []);
     }
 
     fetchInitialData();
   }, []);
-  const handleLevelChange = (key: keyof AttainmentValues, rawValue: number) => {
-    if (Number.isNaN(rawValue)) {
+  useEffect(() => {
+    setRangeValidationMessage(
+      validateAttainmentRanges(attainmentRanges, minLevel, maxLevel),
+    );
+  }, [attainmentRanges, minLevel, maxLevel]);
+
+  const handleLevelChange = (key: keyof AttainmentValues, rawValue: string) => {
+    const nextValue = Number(rawValue);
+
+    if (Number.isNaN(nextValue)) {
       return;
     }
 
     setAttainmentValues((prev) => ({
       ...prev,
-      [key]: clampLevel(rawValue),
+      [key]: nextValue,
     }));
   };
 
-  const handleRangeFieldChange = (
+  const handleMinMaxChange = (
+    field: "minLevel" | "maxLevel",
+    rawValue: string,
+  ) => {
+    const nextValue = Number(rawValue);
+
+    if (Number.isNaN(nextValue)) {
+      return;
+    }
+
+    if (field === "minLevel") {
+      setMinLevel(nextValue);
+      return;
+    }
+
+    setMaxLevel(nextValue);
+  };
+
+  const handleRangeSelectChange = (
     rangeId: string,
     field: "min" | "max" | "level",
-    rawValue: number,
+    rawValue: string,
   ) => {
-    if (Number.isNaN(rawValue)) {
+    const nextValue = Number(rawValue);
+
+    if (Number.isNaN(nextValue)) {
       return;
     }
 
@@ -198,15 +301,10 @@ export default function CollegeAdminPage() {
         return range;
       }
 
-      if (field === "level") {
-        return { ...range, level: clampLevel(rawValue) };
-      }
-
-      return { ...range, [field]: clampPercentage(rawValue) };
+      return { ...range, [field]: nextValue };
     });
 
     setAttainmentRanges(nextRanges);
-    setRangeValidationMessage(validateAttainmentRanges(nextRanges));
   };
 
   const handleAddRange = () => {
@@ -214,23 +312,21 @@ export default function CollegeAdminPage() {
       id: `range-${Date.now()}`,
       min: 0,
       max: 10,
-      level: 1,
+      level: minLevel,
     };
 
     const nextRanges = [...attainmentRanges, nextRange];
     setAttainmentRanges(nextRanges);
-    setRangeValidationMessage(validateAttainmentRanges(nextRanges));
     setPageMessage("New attainment range row added.");
   };
 
   const handleDeleteRange = (rangeId: string) => {
     const nextRanges = attainmentRanges.filter((range) => range.id !== rangeId);
     setAttainmentRanges(nextRanges);
-    setRangeValidationMessage(validateAttainmentRanges(nextRanges));
     setPageMessage("Attainment range row deleted.");
   };
 
-  const handleAttainmentSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleAttainmentSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const hasInvalidLevel = Object.values(attainmentValues).some(
@@ -239,28 +335,48 @@ export default function CollegeAdminPage() {
 
     if (hasInvalidLevel) {
       setPageMessage(
-        "All CO attainment fields must be integer levels between 1 and 5.",
+        `All CO attainment fields must be selected between ${Math.min(
+          minLevel,
+          maxLevel,
+        )} and ${Math.max(minLevel, maxLevel)}.`,
       );
       return;
     }
 
-    const mappingValidation = validateAttainmentRanges(attainmentRanges);
+    const mappingValidation = validateAttainmentRanges(
+      attainmentRanges,
+      minLevel,
+      maxLevel,
+    );
 
     if (mappingValidation) {
       setPageMessage(`Fix attainment range mapping: ${mappingValidation}`);
       return;
     }
 
-    logDummyEndpoint("/college_admin/attainment", {
-      attainmentValues,
-      attainmentRangeMapping: attainmentRanges,
-    });
-    setPageMessage(
-      "Attainment levels and range mapping logged to the console.",
+    setPageMessage("Saving attainment configuration...");
+
+    const payload = {
+      attainmentConfig: attainmentValues,
+      attainmentRanges,
+      attainmentBounds: {
+        minLevel,
+        maxLevel,
+      },
+    };
+
+    const result = await submitToBackend(
+      "/college_admin/update-attainment-config",
+      payload,
+      setPageMessage,
     );
+
+    if (result.success) {
+      setPageMessage("Attainment configuration saved successfully!");
+    }
   };
 
-  const handleAddPO = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddPO = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newPOValue.trim()) {
@@ -274,14 +390,23 @@ export default function CollegeAdminPage() {
       value: newPOValue.trim(),
     };
 
-    const updatedPOs = [...pos, nextPO];
-    setPos(updatedPOs);
-    setNewPOValue("");
-    logDummyEndpoint("/college_admin/program-outcomes", nextPO);
-    setPageMessage(`${nextPO.label} added and logged to the console.`);
+    setPageMessage("Adding program outcome...");
+
+    const result = await submitToBackend(
+      "/college_admin/program-outcomes",
+      { label: nextPO.label, value: nextPO.value },
+      setPageMessage,
+    );
+
+    if (result.success) {
+      const updatedPOs = [...pos, nextPO];
+      setPos(updatedPOs);
+      setNewPOValue("");
+      setPageMessage(`${nextPO.label} added successfully!`);
+    }
   };
 
-  const handleProgrammeCreate = (event: FormEvent<HTMLFormElement>) => {
+  const handleProgrammeCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newProgrammeName.trim()) {
@@ -295,18 +420,27 @@ export default function CollegeAdminPage() {
       hodId: null,
     };
 
-    const updatedProgrammes = [...programmes, nextProgramme];
-    setProgrammes(updatedProgrammes);
-    setNewProgrammeName("");
-    setAssignment((prev) => ({
-      ...prev,
-      programmeId: prev.programmeId || nextProgramme.id,
-    }));
-    logDummyEndpoint("/college_admin/programmes", nextProgramme);
-    setPageMessage("Programme created and logged to the console.");
+    setPageMessage("Creating programme...");
+
+    const result = await submitToBackend(
+      "/college_admin/programmes",
+      { name: nextProgramme.name },
+      setPageMessage,
+    );
+
+    if (result.success) {
+      const updatedProgrammes = [...programmes, nextProgramme];
+      setProgrammes(updatedProgrammes);
+      setNewProgrammeName("");
+      setAssignment((prev) => ({
+        ...prev,
+        programmeId: prev.programmeId || nextProgramme.id,
+      }));
+      setPageMessage("Programme created successfully!");
+    }
   };
 
-  const handleHodCreate = (event: FormEvent<HTMLFormElement>) => {
+  const handleHodCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newHod.name.trim() || !newHod.loginCode.trim()) {
@@ -320,18 +454,27 @@ export default function CollegeAdminPage() {
       loginCode: newHod.loginCode.trim(),
     };
 
-    const updatedHods = [...hods, nextHod];
-    setHods(updatedHods);
-    setNewHod({ name: "", loginCode: "" });
-    setAssignment((prev) => ({
-      ...prev,
-      hodId: prev.hodId || nextHod.id,
-    }));
-    logDummyEndpoint("/college_admin/hods", nextHod);
-    setPageMessage("HOD created and logged to the console.");
+    setPageMessage("Creating HOD...");
+
+    const result = await submitToBackend(
+      "/college_admin/hods",
+      { name: nextHod.name, loginCode: nextHod.loginCode },
+      setPageMessage,
+    );
+
+    if (result.success) {
+      const updatedHods = [...hods, nextHod];
+      setHods(updatedHods);
+      setNewHod({ name: "", loginCode: "" });
+      setAssignment((prev) => ({
+        ...prev,
+        hodId: prev.hodId || nextHod.id,
+      }));
+      setPageMessage("HOD created successfully!");
+    }
   };
 
-  const handleAssignHod = (event: FormEvent<HTMLFormElement>) => {
+  const handleAssignHod = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!assignment.programmeId || !assignment.hodId) {
@@ -339,20 +482,38 @@ export default function CollegeAdminPage() {
       return;
     }
 
-    const updatedProgrammes = programmes.map((programme) =>
-      programme.id === assignment.programmeId
-        ? { ...programme, hodId: assignment.hodId }
-        : programme,
+    setPageMessage("Assigning HOD to programme...");
+
+    const result = await submitToBackend(
+      "/college_admin/assign-hod",
+      {
+        programmeId: assignment.programmeId,
+        hodId: assignment.hodId,
+      },
+      setPageMessage,
     );
 
-    setProgrammes(updatedProgrammes);
-    logDummyEndpoint("/college_admin/assign-hod", assignment);
-    setPageMessage("HOD assignment prepared and logged to the console.");
+    if (result.success) {
+      const updatedProgrammes = programmes.map((programme) =>
+        programme.id === assignment.programmeId
+          ? { ...programme, hodId: assignment.hodId }
+          : programme,
+      );
+
+      setProgrammes(updatedProgrammes);
+      setPageMessage("HOD assigned to programme successfully!");
+    }
   };
 
-  const assignedCount = programmes.filter(
+  const assignedCount = programmes?.filter(
     (programme) => programme.hodId,
   ).length;
+
+  const attainmentValueOptions = (currentValue: number) =>
+    mergeOptionsWithCurrentValue(attainmentOptions, currentValue);
+
+  const boundValueOptions = (currentValue: number) =>
+    mergeOptionsWithCurrentValue(configuredBoundOptions, currentValue);
 
   return (
     <main className="min-h-screen bg-[color:var(--color-primary)] px-4 py-8 sm:px-6 lg:px-10">
@@ -374,25 +535,25 @@ export default function CollegeAdminPage() {
             <div className="rounded-md border border-slate-200 bg-white p-3">
               <p className="text-xs text-slate-500">POs</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                {pos.length}
+                {pos?.length ?? 0}
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white p-3">
               <p className="text-xs text-slate-500">Programmes</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                {programmes.length}
+                {programmes?.length ?? 0}
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white p-3">
               <p className="text-xs text-slate-500">HODs</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                {hods.length}
+                {hods?.length ?? 0}
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white p-3">
               <p className="text-xs text-slate-500">Assigned Programmes</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                {assignedCount}
+                {assignedCount ?? 0}
               </p>
             </div>
           </div>
@@ -415,9 +576,58 @@ export default function CollegeAdminPage() {
                   CO Attainment Values
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Enter attainment levels for each CO input using values from 1
-                  to 5.
+                  Choose attainment levels from the configurable range below.
                 </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-md border border-slate-200 bg-[color:var(--color-primary)] p-4">
+              <h3 className="text-base font-semibold text-slate-900">
+                Attainment Level Settings
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Configure the minimum and maximum attainment levels used by all
+                dropdowns on this page.
+              </p>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">
+                    Minimum Attainment Level
+                  </label>
+                  <select
+                    value={minLevel}
+                    onChange={(event) =>
+                      handleMinMaxChange("minLevel", event.currentTarget.value)
+                    }
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  >
+                    {boundValueOptions(minLevel).map((option) => (
+                      <option key={`min-bound-${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">
+                    Maximum Attainment Level
+                  </label>
+                  <select
+                    value={maxLevel}
+                    onChange={(event) =>
+                      handleMinMaxChange("maxLevel", event.currentTarget.value)
+                    }
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  >
+                    {boundValueOptions(maxLevel).map((option) => (
+                      <option key={`max-bound-${option}`} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -426,22 +636,26 @@ export default function CollegeAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Direct CO Internal Attainment
                 </label>
-                <input
-                  type="number"
-                  value={attainmentValues.directCOInternal}
+                <select
+                  value={attainmentValues?.directCOInternal}
                   onChange={(event) =>
                     handleLevelChange(
                       "directCOInternal",
-                      event.currentTarget.valueAsNumber,
+                      event.currentTarget.value,
                     )
                   }
-                  min={1}
-                  max={5}
-                  step={1}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                >
+                  {attainmentValueOptions(
+                    attainmentValues.directCOInternal,
+                  ).map((option) => (
+                    <option key={`direct-internal-${option}`} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-slate-500">
-                  Enter attainment level (1-5).
+                  Select an attainment level from the configured range.
                 </p>
               </div>
 
@@ -449,22 +663,26 @@ export default function CollegeAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Direct CO External Attainment
                 </label>
-                <input
-                  type="number"
-                  value={attainmentValues.directCOExternal}
+                <select
+                  value={attainmentValues?.directCOExternal}
                   onChange={(event) =>
                     handleLevelChange(
                       "directCOExternal",
-                      event.currentTarget.valueAsNumber,
+                      event.currentTarget.value,
                     )
                   }
-                  min={1}
-                  max={5}
-                  step={1}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                >
+                  {attainmentValueOptions(
+                    attainmentValues.directCOExternal,
+                  ).map((option) => (
+                    <option key={`direct-external-${option}`} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-slate-500">
-                  Enter attainment level (1-5).
+                  Select an attainment level from the configured range.
                 </p>
               </div>
 
@@ -472,22 +690,26 @@ export default function CollegeAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Indirect CO Internal Attainment
                 </label>
-                <input
-                  type="number"
-                  value={attainmentValues.indirectCOInternal}
+                <select
+                  value={attainmentValues?.indirectCOInternal}
                   onChange={(event) =>
                     handleLevelChange(
                       "indirectCOInternal",
-                      event.currentTarget.valueAsNumber,
+                      event.currentTarget.value,
                     )
                   }
-                  min={1}
-                  max={5}
-                  step={1}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                >
+                  {attainmentValueOptions(
+                    attainmentValues.indirectCOInternal,
+                  ).map((option) => (
+                    <option key={`indirect-internal-${option}`} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-slate-500">
-                  Enter attainment level (1-5).
+                  Select an attainment level from the configured range.
                 </p>
               </div>
 
@@ -495,22 +717,26 @@ export default function CollegeAdminPage() {
                 <label className="text-sm font-medium text-slate-700">
                   Indirect CO External Attainment
                 </label>
-                <input
-                  type="number"
-                  value={attainmentValues.indirectCOExternal}
+                <select
+                  value={attainmentValues?.indirectCOExternal}
                   onChange={(event) =>
                     handleLevelChange(
                       "indirectCOExternal",
-                      event.currentTarget.valueAsNumber,
+                      event.currentTarget.value,
                     )
                   }
-                  min={1}
-                  max={5}
-                  step={1}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                >
+                  {attainmentValueOptions(
+                    attainmentValues.indirectCOExternal,
+                  ).map((option) => (
+                    <option key={`indirect-external-${option}`} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-slate-500">
-                  Enter attainment level (1-5).
+                  Select an attainment level from the configured range.
                 </p>
               </div>
             </div>
@@ -522,7 +748,8 @@ export default function CollegeAdminPage() {
                     Attainment Range Mapping
                   </h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    Define how raw percentages map to attainment levels (1-5).
+                    Define how raw percentages map to attainment levels using
+                    the configured range.
                   </p>
                 </div>
                 <button
@@ -553,58 +780,76 @@ export default function CollegeAdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {attainmentRanges.map((range) => (
+                    {attainmentRanges?.map((range) => (
                       <tr key={range.id}>
                         <td className="px-3 py-2">
-                          <input
-                            type="number"
+                          <select
                             value={range.min}
                             onChange={(event) =>
-                              handleRangeFieldChange(
+                              handleRangeSelectChange(
                                 range.id,
                                 "min",
-                                event.currentTarget.valueAsNumber,
+                                event.currentTarget.value,
                               )
                             }
-                            min={0}
-                            max={100}
-                            step={1}
-                            className="h-9 w-24 rounded-md border border-slate-300 px-2 outline-none transition focus:border-secondary"
-                          />
+                            className="h-9 w-24 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
+                          >
+                            {percentageOptions.map((option) => (
+                              <option
+                                key={`range-${range.id}-min-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-2">
-                          <input
-                            type="number"
+                          <select
                             value={range.max}
                             onChange={(event) =>
-                              handleRangeFieldChange(
+                              handleRangeSelectChange(
                                 range.id,
                                 "max",
-                                event.currentTarget.valueAsNumber,
+                                event.currentTarget.value,
                               )
                             }
-                            min={0}
-                            max={100}
-                            step={1}
-                            className="h-9 w-24 rounded-md border border-slate-300 px-2 outline-none transition focus:border-secondary"
-                          />
+                            className="h-9 w-24 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
+                          >
+                            {percentageOptions.map((option) => (
+                              <option
+                                key={`range-${range.id}-max-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-2">
-                          <input
-                            type="number"
+                          <select
                             value={range.level}
                             onChange={(event) =>
-                              handleRangeFieldChange(
+                              handleRangeSelectChange(
                                 range.id,
                                 "level",
-                                event.currentTarget.valueAsNumber,
+                                event.currentTarget.value,
                               )
                             }
-                            min={1}
-                            max={5}
-                            step={1}
-                            className="h-9 w-20 rounded-md border border-slate-300 px-2 outline-none transition focus:border-secondary"
-                          />
+                            className="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
+                          >
+                            {mergeOptionsWithCurrentValue(
+                              attainmentOptions,
+                              range.level,
+                            ).map((option) => (
+                              <option
+                                key={`range-${range.id}-level-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-2">
                           <button
@@ -670,7 +915,7 @@ export default function CollegeAdminPage() {
             </form>
 
             <div className="mt-5 grid grid-cols-1 gap-3">
-              {pos.map((po) => (
+              {pos?.map((po) => (
                 <div
                   key={po.id}
                   className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
@@ -716,7 +961,7 @@ export default function CollegeAdminPage() {
             </form>
 
             <div className="mt-5 space-y-3">
-              {programmes.map((programme) => {
+              {programmes?.map((programme) => {
                 const assignedHod = hods.find(
                   (hod) => hod.id === programme.hodId,
                 );
@@ -796,7 +1041,7 @@ export default function CollegeAdminPage() {
             </form>
 
             <div className="mt-5 space-y-3">
-              {hods.map((hod) => (
+              {hods?.map((hod) => (
                 <div
                   key={hod.id}
                   className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
@@ -842,7 +1087,7 @@ export default function CollegeAdminPage() {
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
               >
-                {programmes.map((programme) => (
+                {programmes?.map((programme) => (
                   <option key={programme.id} value={programme.id}>
                     {programme.name}
                   </option>
@@ -862,7 +1107,7 @@ export default function CollegeAdminPage() {
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
               >
-                {hods.map((hod) => (
+                {hods?.map((hod) => (
                   <option key={hod.id} value={hod.id}>
                     {hod.name}
                   </option>
