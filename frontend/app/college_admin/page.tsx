@@ -229,14 +229,15 @@ export default function CollegeAdminPage() {
         {
           credentials: "include",
         },
-      ).catch(() => null);
+      );
 
+      const data = await res.json();
       if (!res?.ok) {
-        setPageMessage("Failed to load initial data. Using defaults.");
+        setPageMessage(
+          data.message || "Failed to load initial data. Using defaults.",
+        );
         return;
       }
-
-      const data = await res.json().catch(() => null);
 
       if (!data) {
         setPageMessage("Invalid initial data format. Using defaults.");

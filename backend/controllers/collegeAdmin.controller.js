@@ -4,47 +4,10 @@ import Programme from "../model/Programme.js";
 
 export const getCollegeDetailsById = async (req, res) => {
   try {
-    const id = req.user?.collegeId;
-    if (!id) {
-      return res.status(400).json({
-        status: "error",
-        message: "College ID not found in user",
-      });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid college ID",
-      });
-    }
-    const college = await College.findById(id).lean();
+    const college = req.college.toObject();
+    const id = college._id;
     const programmes = await Programme.find({ collegeId: id }).lean();
     college.programmes = programmes;
-    if (!college) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "College not found" });
-    }
-    if (!college.isActive) {
-      return res
-        .status(403)
-        .json({ status: "error", message: "College is not active" });
-    }
-    const now = new Date();
-
-    const hasValidTrial = !!college.trialEndsAt && college.trialEndsAt > now;
-
-    const hasValidSubscription =
-      !!college.subscriptionEndsAt && college.subscriptionEndsAt > now;
-
-    if (!hasValidTrial && !hasValidSubscription) {
-      return res.status(403).json({
-        status: "error",
-        message: "College subscription is not valid",
-      });
-    }
-
     res.status(200).json({ status: "ok", college });
   } catch (error) {
     console.error("Error fetching colleges:", error);
@@ -56,25 +19,14 @@ export const getCollegeDetailsById = async (req, res) => {
 
 export const updateCollegeAttainmentConfig = async (req, res) => {
   try {
-    const id = req.user?.collegeId;
-    if (!id) {
-      return res.status(400).json({
-        status: "error",
-        message: "College ID not found in user",
-      });
-    }
+    const college = req.college;
+    const id = college._id;
     const { attainmentConfig, attainmentRanges, pos } = req.body;
     if (!attainmentConfig || !attainmentRanges || !pos) {
       return res.status(400).json({
         status: "error",
-        message: "Either Attainment config or Attainment range is required",
+        message: "Attainment config, attainment ranges and pos are required",
       });
-    }
-    const college = await College.findById(id);
-    if (!college) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "College not found" });
     }
     college.attainmentConfig = attainmentConfig;
     college.attainmentRanges = attainmentRanges;
@@ -93,7 +45,7 @@ export const updateCollegeAttainmentConfig = async (req, res) => {
 
 export const AddProgram = async (req, res) => {
   try {
-    const id = req.user?.collegeId;
+    const id = req.college._id;
     if (!id) {
       return res.status(400).json({
         status: "error",
@@ -107,12 +59,7 @@ export const AddProgram = async (req, res) => {
         message: "Program name is required",
       });
     }
-    const college = await College.findById(id).lean();
-    if (!college) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "College not found" });
-    }
+    const college = req.college;
     const newProgramme = await Programme.create({ name, collegeId: id });
 
     res.status(200).json({

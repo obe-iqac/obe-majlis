@@ -25,6 +25,7 @@ import superAdminRoutes from "./routes/superAdmin.routes.js";
 import collegeAdminRoutes from "./routes/collegeAdmin.routes.js";
 import { authMiddleware } from "./middleware/auth.middleware.js";
 import { allowRoles } from "./middleware/role.middleware.js";
+import { validateCollegeAccess } from "./middleware/collegeAccess.middleware.js";
 
 // Load all variables from .env into process.env
 dotenv.config();
@@ -60,6 +61,7 @@ app.use(
   "/college_admin",
   authMiddleware,
   allowRoles("COLLEGE_ADMIN"),
+  validateCollegeAccess,
   collegeAdminRoutes,
 );
 // Test route to check server is running
