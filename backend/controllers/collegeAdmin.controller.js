@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import College from "../model/College.js";
+import Programme from "../model/Programme.js";
 
 export const getCollegeDetailsById = async (req, res) => {
   try {
@@ -18,6 +19,8 @@ export const getCollegeDetailsById = async (req, res) => {
       });
     }
     const college = await College.findById(id).lean();
+    const programmes = await Programme.find({ collegeId: id }).lean();
+    college.programmes = programmes;
     if (!college) {
       return res
         .status(404)
@@ -85,5 +88,42 @@ export const updateCollegeAttainmentConfig = async (req, res) => {
     res
       .status(500)
       .json({ status: "error", message: "Failed to update attainment config" });
+  }
+};
+
+export const AddProgram = async (req, res) => {
+  try {
+    const id = req.user?.collegeId;
+    if (!id) {
+      return res.status(400).json({
+        status: "error",
+        message: "College ID not found in user",
+      });
+    }
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({
+        status: "error",
+        message: "Program name is required",
+      });
+    }
+    const college = await College.findById(id).lean();
+    if (!college) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "College not found" });
+    }
+    const newProgramme = await Programme.create({ name, collegeId: id });
+
+    res.status(200).json({
+      status: "ok",
+      message: "Programe added",
+      programme: newProgramme,
+    });
+  } catch (error) {
+    console.error("Error adding programme:", error);
+    res
+      .status(500)
+      .json({ status: "error", message: "Failed to add programme" });
   }
 };

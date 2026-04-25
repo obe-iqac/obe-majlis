@@ -224,9 +224,12 @@ export default function CollegeAdminPage() {
   );
   useEffect(() => {
     async function fetchInitialData() {
-      const res = await fetch(`${SERVER_URL}/college_admin/get-college-info`, {
-        credentials: "include",
-      }).catch(() => null);
+      const res = await fetch(
+        `${SERVER_URL}/college_admin/get-full-college-info`,
+        {
+          credentials: "include",
+        },
+      ).catch(() => null);
 
       if (!res?.ok) {
         setPageMessage("Failed to load initial data. Using defaults.");
@@ -273,7 +276,7 @@ export default function CollegeAdminPage() {
           )
           .filter((poItem: ProgramOutcome) => Boolean(poItem.id && poItem.po)),
       );
-      setProgrammes(data.programmes ?? []);
+      setProgrammes(data.college.programmes ?? []);
       setHods(data.hods ?? []);
     }
 
@@ -453,7 +456,7 @@ export default function CollegeAdminPage() {
     setPageMessage("Creating programme...");
 
     const result = await submitToBackend(
-      "/college_admin/programmes",
+      "/college_admin/add-program",
       { name: nextProgramme.name },
       setPageMessage,
     );
