@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import College from "../model/College.js";
 import Programme from "../model/Programme.js";
+import User from "../model/User.js";
 
 export const getCollegeDetailsById = async (req, res) => {
   try {
@@ -69,6 +70,46 @@ export const AddProgram = async (req, res) => {
     });
   } catch (error) {
     console.error("Error adding programme:", error);
+    res
+      .status(500)
+      .json({ status: "error", message: "Failed to add programme" });
+  }
+};
+
+export const AddHOD = async (req, res) => {
+  try {
+    const id = req.college._id;
+    if (!id) {
+      return res.status(400).json({
+        status: "error",
+        message: "College ID not found in user",
+      });
+    }
+    const { name, loginCode, password, type } = req.body;
+    if (!name || !loginCode || !type) {
+      return res.status(400).json({
+        status: "error",
+        message: "Name and login code is required",
+      });
+    }
+    const college = req.college;
+    const newHod = await User.create({
+      name,
+      code: loginCode,
+      password,
+      role: type,
+      isActive: true,
+      isPaswordSet: password ? true : false,
+      collegeId: id,
+      createdBy: req.user._id,
+    });
+    res.status(200).json({
+      status: "ok",
+      message: "User added",
+      user: newHod,
+    });
+  } catch (error) {
+    console.error("Error creating user:", error);
     res
       .status(500)
       .json({ status: "error", message: "Failed to add programme" });

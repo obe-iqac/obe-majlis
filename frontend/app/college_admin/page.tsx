@@ -32,6 +32,7 @@ type Hod = {
   id: string;
   name: string;
   loginCode: string;
+  type?: "HOD" | "TEACHER";
 };
 
 const ATTTAINMENT_BOUND_MIN = 1;
@@ -206,7 +207,12 @@ export default function CollegeAdminPage() {
 
   const [newPOValue, setNewPOValue] = useState("");
   const [newProgrammeName, setNewProgrammeName] = useState("");
-  const [newHod, setNewHod] = useState({ name: "", loginCode: "" });
+  const [newHod, setNewHod] = useState({
+    name: "",
+    loginCode: "",
+    password: "",
+    type: "HOD" as "HOD" | "TEACHER",
+  });
   const [assignment, setAssignment] = useState({
     programmeId: "",
     hodId: "",
@@ -486,20 +492,26 @@ export default function CollegeAdminPage() {
       id: `hod-${hods.length + 1}`,
       name: newHod.name.trim(),
       loginCode: newHod.loginCode.trim(),
+      type: newHod.type,
     };
 
     setPageMessage("Creating HOD...");
 
     const result = await submitToBackend(
-      "/college_admin/hods",
-      { name: nextHod.name, loginCode: nextHod.loginCode },
+      "/college_admin/add-hod",
+      {
+        name: nextHod.name,
+        loginCode: nextHod.loginCode,
+        password: newHod.password.trim() || null,
+        type: newHod.type,
+      },
       setPageMessage,
     );
 
     if (result.success) {
       const updatedHods = [...hods, nextHod];
       setHods(updatedHods);
-      setNewHod({ name: "", loginCode: "" });
+      setNewHod({ name: "", loginCode: "", password: "", type: "HOD" });
       setAssignment((prev) => ({
         ...prev,
         hodId: prev.hodId || nextHod.id,
@@ -1066,6 +1078,43 @@ export default function CollegeAdminPage() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">
+                  Password (Optional)
+                </label>
+                <input
+                  type="password"
+                  value={newHod.password}
+                  onChange={(event) =>
+                    setNewHod((prev) => ({
+                      ...prev,
+                      password: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter password or leave empty"
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">
+                  Type
+                </label>
+                <select
+                  value={newHod.type}
+                  onChange={(event) =>
+                    setNewHod((prev) => ({
+                      ...prev,
+                      type: event.target.value as "HOD" | "TEACHER",
+                    }))
+                  }
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                >
+                  <option value="HOD">HOD</option>
+                  <option value="TEACHER">TEACHER</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 className="h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
@@ -1085,6 +1134,9 @@ export default function CollegeAdminPage() {
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
                     Login Code: {hod.loginCode}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Type: {hod.type ?? "HOD"}
                   </p>
                 </div>
               ))}
