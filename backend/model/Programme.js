@@ -9,12 +9,6 @@ const programmeSchema = new mongoose.Schema({
     ref: "College",
     required: true,
   },
-
-  hodId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    default: null,
-  },
 });
 
 export default mongoose.models.Programme ||

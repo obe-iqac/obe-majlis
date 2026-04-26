@@ -3,13 +3,25 @@ import College from "../model/College.js";
 import Programme from "../model/Programme.js";
 import User from "../model/User.js";
 
+import bcrypt from "bcrypt";
+
 export const getCollegeDetailsById = async (req, res) => {
   try {
     const college = req.college.toObject();
     const id = college._id;
     const programmes = await Programme.find({ collegeId: id }).lean();
-    college.programmes = programmes;
-    res.status(200).json({ status: "ok", college });
+    const teachers = await User.find({
+      collegeId: id,
+      role: { $in: ["HOD", "TEACHER"] },
+    })
+      .select("name role isActive programmes code")
+      .lean();
+    const data = {
+      programmes,
+      teachers,
+      college,
+    };
+    res.status(200).json({ status: "ok", data });
   } catch (error) {
     console.error("Error fetching colleges:", error);
     res
@@ -76,7 +88,7 @@ export const AddProgram = async (req, res) => {
   }
 };
 
-export const AddHOD = async (req, res) => {
+export const AddTeacher = async (req, res) => {
   try {
     const id = req.college._id;
     if (!id) {
@@ -85,21 +97,27 @@ export const AddHOD = async (req, res) => {
         message: "College ID not found in user",
       });
     }
-    const { name, loginCode, password, type } = req.body;
-    if (!name || !loginCode || !type) {
+    const { name, code, password, role } = req.body;
+    if (!name || !code || !role) {
       return res.status(400).json({
         status: "error",
-        message: "Name and login code is required",
+        message: "Name ,role and login code is required",
       });
     }
     const college = req.college;
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    console.log(
+      password
+        ? "Password provided, hashing..."
+        : "No password provided, skipping hashing.",
+    );
     const newHod = await User.create({
       name,
-      code: loginCode,
-      password,
-      role: type,
+      code: code.toUpperCase().trim(),
+      password: passwordHash,
+      role: role.toUpperCase(),
       isActive: true,
-      isPaswordSet: password ? true : false,
+      isPasswordSet: password ? true : false,
       collegeId: id,
       createdBy: req.user._id,
     });
@@ -113,5 +131,57 @@ export const AddHOD = async (req, res) => {
     res
       .status(500)
       .json({ status: "error", message: "Failed to add programme" });
+  }
+};
+
+export const AssignTeacherToProgram = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId, programmeId } = req.body;
+    if (!teacherId || !programmeId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID and Programme ID are required",
+      });
+    }
+    const teacher = await User.findOne({
+      _id: teacherId,
+      collegeId,
+      role: { $in: ["HOD", "TEACHER"] },
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    const programme = await Programme.findOne({
+      _id: programmeId,
+      collegeId,
+    });
+    if (!programme) {
+      return res.status(404).json({
+        status: "error",
+        message: "Programme not found in this college",
+      });
+    }
+    if (teacher.programmes.includes(programmeId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher is already assigned to this programme",
+      });
+    }
+    teacher.programmes.push(programmeId);
+    await teacher.save();
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher assigned to programme",
+    });
+  } catch (error) {
+    console.error("Error assigning teacher to programme:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to assign teacher to programme",
+    });
   }
 };

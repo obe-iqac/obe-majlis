@@ -23,16 +23,17 @@ type ProgramOutcome = {
 };
 
 type Programme = {
-  id: string;
+  _id: string;
   name: string;
-  hodId: string | null;
+  teacherId: string | null;
 };
 
-type Hod = {
-  id: string;
+type Teacher = {
+  _id: string;
   name: string;
-  loginCode: string;
-  type?: "HOD" | "TEACHER";
+  code: string;
+  role?: "TEACHER" | "HOD";
+  programmes?: string[];
 };
 
 const ATTTAINMENT_BOUND_MIN = 1;
@@ -201,21 +202,21 @@ export default function CollegeAdminPage() {
   );
   const [pos, setPos] = useState<ProgramOutcome[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
-  const [hods, setHods] = useState<Hod[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [minLevel, setMinLevel] = useState(1);
   const [maxLevel, setMaxLevel] = useState(5);
 
   const [newPOValue, setNewPOValue] = useState("");
   const [newProgrammeName, setNewProgrammeName] = useState("");
-  const [newHod, setNewHod] = useState({
+  const [newTeacher, setNewTeacher] = useState({
     name: "",
-    loginCode: "",
+    code: "",
     password: "",
-    type: "HOD" as "HOD" | "TEACHER",
+    role: "TEACHER" as "TEACHER" | "HOD",
   });
   const [assignment, setAssignment] = useState({
     programmeId: "",
-    hodId: "",
+    teacherId: "",
   });
   const [pageMessage, setPageMessage] = useState("");
   const [rangeValidationMessage, setRangeValidationMessage] = useState(
@@ -250,7 +251,7 @@ export default function CollegeAdminPage() {
         return;
       }
 
-      const collegeAttainmentConfig = data.college?.attainmentConfig ?? {};
+      const collegeAttainmentConfig = data.data.college?.attainmentConfig ?? {};
       const configuredBounds = getConfiguredAttainmentBounds(
         collegeAttainmentConfig,
       );
@@ -263,8 +264,8 @@ export default function CollegeAdminPage() {
       });
       setMinLevel(configuredBounds.minLevel);
       setMaxLevel(configuredBounds.maxLevel);
-      setAttainmentRanges(data.college?.attainmentRanges ?? []);
-      const fetchedPos = data.college?.pos ?? data.pos ?? [];
+      setAttainmentRanges(data.data.college?.attainmentRanges ?? []);
+      const fetchedPos = data.data.college?.pos ?? data.pos ?? [];
       setPos(
         fetchedPos
           .map(
@@ -283,12 +284,13 @@ export default function CollegeAdminPage() {
           )
           .filter((poItem: ProgramOutcome) => Boolean(poItem.id && poItem.po)),
       );
-      setProgrammes(data.college.programmes ?? []);
-      setHods(data.hods ?? []);
+      setProgrammes(data.data.programmes ?? []);
+      setTeachers(data.data.teachers ?? []);
     }
 
     fetchInitialData();
   }, []);
+
   useEffect(() => {
     setRangeValidationMessage(
       validateAttainmentRanges(attainmentRanges, minLevel, maxLevel),
@@ -455,9 +457,9 @@ export default function CollegeAdminPage() {
     }
 
     const nextProgramme: Programme = {
-      id: `programme-${programmes.length + 1}`,
+      _id: `programme-${programmes.length + 1}`,
       name: newProgrammeName.trim(),
-      hodId: null,
+      teacherId: null,
     };
 
     setPageMessage("Creating programme...");
@@ -474,86 +476,91 @@ export default function CollegeAdminPage() {
       setNewProgrammeName("");
       setAssignment((prev) => ({
         ...prev,
-        programmeId: prev.programmeId || nextProgramme.id,
+        programmeId: prev.programmeId || nextProgramme._id,
       }));
       setPageMessage("Programme created successfully!");
     }
   };
 
-  const handleHodCreate = async (event: FormEvent<HTMLFormElement>) => {
+  const handleTeacherCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!newHod.name.trim() || !newHod.loginCode.trim()) {
-      setPageMessage("HOD name and login code are required.");
+    if (!newTeacher.name.trim() || !newTeacher.code.trim()) {
+      setPageMessage("TEACHER name and login code are required.");
       return;
     }
 
-    const nextHod: Hod = {
-      id: `hod-${hods.length + 1}`,
-      name: newHod.name.trim(),
-      loginCode: newHod.loginCode.trim(),
-      type: newHod.type,
-    };
-
-    setPageMessage("Creating HOD...");
+    setPageMessage("Creating TEACHER...");
 
     const result = await submitToBackend(
-      "/college_admin/add-hod",
+      "/college_admin/add-teacher",
       {
-        name: nextHod.name,
-        loginCode: nextHod.loginCode,
-        password: newHod.password.trim() || null,
-        type: newHod.type,
+        name: newTeacher.name.trim(),
+        code: newTeacher.code.trim(),
+        password: newTeacher.password.trim() || null,
+        role: newTeacher.role,
       },
       setPageMessage,
     );
 
     if (result.success) {
-      const updatedHods = [...hods, nextHod];
-      setHods(updatedHods);
-      setNewHod({ name: "", loginCode: "", password: "", type: "HOD" });
+      const nextTeacher: Teacher = {
+        _id: result.data.user._id,
+        name: result.data.user.name,
+        code: result.data.user.code,
+        role: result.data.user.role,
+        programmes: result.data.user.programmes ?? [],
+      };
+
+      setTeachers([...teachers, nextTeacher]);
+      setNewTeacher({ name: "", code: "", password: "", role: "TEACHER" });
       setAssignment((prev) => ({
         ...prev,
-        hodId: prev.hodId || nextHod.id,
+        teacherId: prev.teacherId || nextTeacher._id,
       }));
-      setPageMessage("HOD created successfully!");
+      setPageMessage("TEACHER created successfully!");
     }
+    console.log("Teacher creation result:", result);
   };
 
-  const handleAssignHod = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAssignTeacher = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!assignment.programmeId || !assignment.hodId) {
-      setPageMessage("Select both a programme and a HOD.");
+    if (!assignment.programmeId || !assignment.teacherId) {
+      setPageMessage("Select both a programme and a TEACHER.");
       return;
     }
 
-    setPageMessage("Assigning HOD to programme...");
+    setPageMessage("Assigning TEACHER to programme...");
 
     const result = await submitToBackend(
-      "/college_admin/assign-hod",
+      "/college_admin/assign-teacher",
       {
         programmeId: assignment.programmeId,
-        hodId: assignment.hodId,
+        teacherId: assignment.teacherId,
       },
       setPageMessage,
     );
 
     if (result.success) {
       const updatedProgrammes = programmes.map((programme) =>
-        programme.id === assignment.programmeId
-          ? { ...programme, hodId: assignment.hodId }
+        programme._id === assignment.programmeId
+          ? { ...programme, teacherId: assignment.teacherId }
           : programme,
       );
 
       setProgrammes(updatedProgrammes);
-      setPageMessage("HOD assigned to programme successfully!");
+      setPageMessage("TEACHER assigned to programme successfully!");
     }
   };
 
   const assignedCount = programmes?.filter(
-    (programme) => programme.hodId,
+    (programme) => programme.teacherId,
   ).length;
+
+  const getTeacherAssignedProgrammes = (teacherProgrammeIds: string[] = []) =>
+    programmes.filter((programme) =>
+      teacherProgrammeIds.includes(programme._id),
+    );
 
   const attainmentValueOptions = (currentValue: number) =>
     mergeOptionsWithCurrentValue(attainmentOptions, currentValue);
@@ -571,8 +578,8 @@ export default function CollegeAdminPage() {
                 College Admin Dashboard
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Manage attainment inputs, program outcomes, programmes, and HOD
-                assignments from one place.
+                Manage attainment inputs, program outcomes, programmes, and
+                TEACHER assignments from one place.
               </p>
             </div>
           </div>
@@ -591,9 +598,9 @@ export default function CollegeAdminPage() {
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">HODs</p>
+              <p className="text-xs text-slate-500">Teachers</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                {hods?.length ?? 0}
+                {teachers?.length ?? 0}
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-white p-3">
@@ -1008,22 +1015,22 @@ export default function CollegeAdminPage() {
 
             <div className="mt-5 space-y-3">
               {programmes?.map((programme) => {
-                const assignedHod = hods.find(
-                  (hod) => hod.id === programme.hodId,
+                const assignedTeacher = teachers.find(
+                  (teacher) => teacher._id === programme.teacherId,
                 );
 
                 return (
                   <div
-                    key={programme.id}
+                    key={programme._id}
                     className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
                   >
                     <p className="text-sm font-semibold text-slate-900">
                       {programme.name}
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      {assignedHod
-                        ? `Assigned HOD: ${assignedHod.name}`
-                        : "Assigned HOD: Not assigned yet"}
+                      {assignedTeacher
+                        ? `Assigned TEACHER: ${assignedTeacher.name}`
+                        : "Assigned TEACHER: Not assigned yet"}
                     </p>
                   </div>
                 );
@@ -1034,28 +1041,31 @@ export default function CollegeAdminPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Create HOD
+                Create TEACHER
               </h2>
               <p className="mt-1 text-sm text-slate-600">
-                Create HOD entries with a name and login code.
+                Create TEACHER entries with a name and login code.
               </p>
             </div>
 
             <form
-              onSubmit={handleHodCreate}
+              onSubmit={handleTeacherCreate}
               className="mt-5 grid grid-cols-1 gap-4"
             >
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">
-                  HOD Name
+                  TEACHER Name
                 </label>
                 <input
                   type="text"
-                  value={newHod.name}
+                  value={newTeacher.name}
                   onChange={(event) =>
-                    setNewHod((prev) => ({ ...prev, name: event.target.value }))
+                    setNewTeacher((prev) => ({
+                      ...prev,
+                      name: event.target.value,
+                    }))
                   }
-                  placeholder="Enter HOD name"
+                  placeholder="Enter TEACHER name"
                   className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
                 />
               </div>
@@ -1066,11 +1076,11 @@ export default function CollegeAdminPage() {
                 </label>
                 <input
                   type="text"
-                  value={newHod.loginCode}
+                  value={newTeacher.code}
                   onChange={(event) =>
-                    setNewHod((prev) => ({
+                    setNewTeacher((prev) => ({
                       ...prev,
-                      loginCode: event.target.value,
+                      code: event.target.value,
                     }))
                   }
                   placeholder="Enter login code"
@@ -1084,9 +1094,9 @@ export default function CollegeAdminPage() {
                 </label>
                 <input
                   type="password"
-                  value={newHod.password}
+                  value={newTeacher.password}
                   onChange={(event) =>
-                    setNewHod((prev) => ({
+                    setNewTeacher((prev) => ({
                       ...prev,
                       password: event.target.value,
                     }))
@@ -1101,17 +1111,17 @@ export default function CollegeAdminPage() {
                   Type
                 </label>
                 <select
-                  value={newHod.type}
+                  value={newTeacher.role}
                   onChange={(event) =>
-                    setNewHod((prev) => ({
+                    setNewTeacher((prev) => ({
                       ...prev,
-                      type: event.target.value as "HOD" | "TEACHER",
+                      role: event.target.value as "TEACHER" | "HOD",
                     }))
                   }
                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
                 >
-                  <option value="HOD">HOD</option>
                   <option value="TEACHER">TEACHER</option>
+                  <option value="HOD">HOD</option>
                 </select>
               </div>
 
@@ -1119,27 +1129,50 @@ export default function CollegeAdminPage() {
                 type="submit"
                 className="h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
               >
-                Create HOD
+                Create TEACHER
               </button>
             </form>
 
             <div className="mt-5 space-y-3">
-              {hods?.map((hod) => (
-                <div
-                  key={hod.id}
-                  className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
-                >
-                  <p className="text-sm font-semibold text-slate-900">
-                    {hod.name}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Login Code: {hod.loginCode}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Type: {hod.type ?? "HOD"}
-                  </p>
-                </div>
-              ))}
+              {teachers?.map((teacher) => {
+                const assignedProgrammes = getTeacherAssignedProgrammes(
+                  teacher.programmes,
+                );
+
+                return (
+                  <div
+                    key={teacher._id}
+                    className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      {teacher.name}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Login Code: {teacher.code}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Type: {teacher.role ?? "TEACHER"}
+                    </p>
+
+                    <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Assigned Programmes
+                      </p>
+                      {assignedProgrammes.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                          {assignedProgrammes.map((programme) => (
+                            <li key={programme._id}>{programme.name}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-500">
+                          No programmes assigned yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         </section>
@@ -1147,16 +1180,16 @@ export default function CollegeAdminPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
-              Assign HOD To Programme
+              Assign TEACHER To Programme
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Choose a programme and connect it to an HOD. Submission only logs
-              the payload for now.
+              Choose a programme and connect it to an TEACHER. Submission only
+              logs the payload for now.
             </p>
           </div>
 
           <form
-            onSubmit={handleAssignHod}
+            onSubmit={handleAssignTeacher}
             className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3"
           >
             <div className="space-y-1">
@@ -1173,8 +1206,9 @@ export default function CollegeAdminPage() {
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
               >
+                <option value="">Select Programme</option>
                 {programmes?.map((programme) => (
-                  <option key={programme.id} value={programme.id}>
+                  <option key={programme._id} value={programme._id}>
                     {programme.name}
                   </option>
                 ))}
@@ -1182,20 +1216,23 @@ export default function CollegeAdminPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">HOD</label>
+              <label className="text-sm font-medium text-slate-700">
+                TEACHER
+              </label>
               <select
-                value={assignment.hodId}
+                value={assignment.teacherId}
                 onChange={(event) =>
                   setAssignment((prev) => ({
                     ...prev,
-                    hodId: event.target.value,
+                    teacherId: event.target.value,
                   }))
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
               >
-                {hods?.map((hod) => (
-                  <option key={hod.id} value={hod.id}>
-                    {hod.name}
+                <option value="">Select TEACHER</option>
+                {teachers?.map((teacher) => (
+                  <option key={teacher._id} value={teacher._id}>
+                    {teacher.name}
                   </option>
                 ))}
               </select>
@@ -1206,7 +1243,7 @@ export default function CollegeAdminPage() {
                 type="submit"
                 className="h-10 w-full rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
               >
-                Assign HOD
+                Assign TEACHER
               </button>
             </div>
           </form>
