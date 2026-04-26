@@ -53,6 +53,12 @@ type Teacher = {
   programmes?: string[];
 };
 
+type CollegeInfo = {
+  name: string;
+
+  attainmentConfig?: Partial<AttainmentValues>;
+  attainmentRanges?: Partial<AttainmentRange>[];
+};
 type WorkspaceMode =
   | "attainment"
   | "programOutcomes"
@@ -295,6 +301,7 @@ export default function CollegeAdminPage() {
     "all" | "assigned" | "unassigned"
   >("all");
 
+  const [collegeInfo, setCollegeInfo] = useState<CollegeInfo>();
   const attainmentOptions = generateAttainmentOptions(minLevel, maxLevel);
   const percentageOptions = generateNumericOptions(0, 100);
   const configuredBoundOptions = generateNumericOptions(
@@ -337,16 +344,9 @@ export default function CollegeAdminPage() {
       });
       setMinLevel(configuredBounds.minLevel);
       setMaxLevel(configuredBounds.maxLevel);
-      const loadedRanges = (data.data.college?.attainmentRanges ?? []).map(
-        (range: any) => ({
-          id: range.id || crypto.randomUUID(),
-          min: Number(range.min),
-          max: Number(range.max),
-          level: Number(range.level),
-        }),
+      setAttainmentRanges(
+        normalizeAttainmentRanges(data.data.college?.attainmentRanges ?? []),
       );
-
-      setAttainmentRanges(loadedRanges);
       const fetchedPos = data.data.college?.pos ?? data.pos ?? [];
       setPos(
         fetchedPos
@@ -368,6 +368,7 @@ export default function CollegeAdminPage() {
       );
       setProgrammes(data.data.programmes ?? []);
       setTeachers(data.data.teachers ?? []);
+      setCollegeInfo(data.data.college ?? null);
     }
 
     fetchInitialData();
@@ -799,332 +800,343 @@ export default function CollegeAdminPage() {
     },
   ];
 
-  return (
-    <main className="min-h-screen bg-[color:var(--color-primary)] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl space-y-3">
-        <header className="rounded-lg border border-slate-200 bg-white px-4 py-2.5">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
-                OBE College Administration
-              </h1>
-              <span className="hidden h-4 w-px bg-slate-300 sm:block" />
-              <p className="text-xs text-slate-500 sm:text-sm">
-                {
-                  workspaceTabs.find(
-                    (workspace) => workspace.id === activeWorkspace,
-                  )?.label
-                }
-              </p>
-            </div>
+  const activeWorkspaceMeta = workspaceTabs.find(
+    (workspace) => workspace.id === activeWorkspace,
+  );
+  const fieldClass =
+    "h-10 w-full rounded-md border-0 bg-[#f4f6f8] px-3 text-sm font-medium text-slate-900 outline-none ring-1 ring-inset ring-slate-300/70 transition placeholder:font-normal placeholder:text-slate-400 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#2f5f86]/35";
+  const compactFieldClass =
+    "h-9 w-full rounded-md border-0 bg-[#f4f6f8] px-2.5 text-sm font-medium text-slate-900 outline-none ring-1 ring-inset ring-slate-300/70 transition hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#2f5f86]/35";
+  const primaryButtonClass =
+    "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#17324a] px-3.5 text-sm font-semibold text-white transition hover:bg-[#10263a] focus:outline-none focus:ring-2 focus:ring-[#17324a]/20";
+  const secondaryButtonClass =
+    "inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#eef3f6] px-3 text-sm font-semibold text-[#25425a] transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20";
+  const captionClass = "text-[0.68rem] font-bold uppercase text-[#587089]";
+  const panelTitleClass = "mt-1 text-xl font-semibold text-[#111827]";
+  const tableHeadClass =
+    "px-3 py-3 text-left text-[0.68rem] font-bold uppercase text-[#64748b]";
 
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              {kpis.map((kpi) => {
-                const Icon = kpi.icon;
-                return (
-                  <div
-                    key={kpi.title}
-                    className="flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5"
-                  >
-                    <Icon className="h-3.5 w-3.5 text-slate-500" />
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-slate-500">
-                        {kpi.title}
-                      </p>
-                      <p className="text-xs font-semibold text-slate-900 sm:text-sm">
+  return (
+    <main className="min-h-screen bg-[#eef1f4] text-slate-950">
+      <div className="mx-auto grid min-h-screen w-full max-w-[1440px] grid-cols-1 lg:grid-cols-[228px_minmax(0,1fr)]">
+        <aside className="border-b border-slate-200/80 bg-[#f8fafb] px-4 py-4 lg:border-b-0 lg:border-r lg:px-3 lg:py-6">
+          <div className="mb-5 px-2">
+            <p className={captionClass}>Workspace</p>
+            <h1 className="mt-1 text-lg font-semibold text-[#101827]">
+              {collegeInfo?.name ?? "College"} Admin
+            </h1>
+          </div>
+
+          <nav className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
+            {workspaceTabs.map((workspace) => {
+              const Icon = workspace.icon;
+              const isActive = activeWorkspace === workspace.id;
+
+              return (
+                <button
+                  key={workspace.id}
+                  type="button"
+                  onClick={() => setActiveWorkspace(workspace.id)}
+                  className={`group relative flex h-10 items-center gap-3 rounded-md px-2.5 text-left text-sm transition ${
+                    isActive
+                      ? "bg-[#e7eef5] font-semibold text-[#14324a] before:absolute before:left-0 before:top-2 before:h-6 before:w-0.5 before:rounded-full before:bg-[#2f5f86]"
+                      : "font-medium text-slate-600 hover:bg-white hover:text-[#14324a]"
+                  }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 ${
+                      isActive
+                        ? "text-[#2f5f86]"
+                        : "text-slate-400 group-hover:text-[#2f5f86]"
+                    }`}
+                  />
+                  <span className="truncate">{workspace.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div className="min-w-0 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+          <header className="mb-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className={captionClass}>College Administration</p>
+                <h2 className="mt-1 text-2xl font-semibold text-[#0f172a] sm:text-3xl">
+                  {activeWorkspaceMeta?.label}
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Govern outcomes, attainment policy, programmes, and faculty
+                  assignments from one institutional control surface.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-7 gap-y-4 border-t border-slate-300/70 pt-4 sm:grid-cols-4 xl:border-t-0 xl:pt-0">
+                {kpis.map((kpi) => {
+                  const Icon = kpi.icon;
+                  return (
+                    <div
+                      key={kpi.title}
+                      className="min-w-0 border-l border-slate-300/80 pl-3"
+                    >
+                      <div className="flex items-center gap-2 text-[#64748b]">
+                        <Icon className="h-3.5 w-3.5" />
+                        <p className="truncate text-[0.68rem] font-bold uppercase">
+                          {kpi.title}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-2xl font-semibold text-[#0f172a]">
                         {kpi.value}
                       </p>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <nav className="rounded-lg border border-slate-200 bg-white p-2">
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
-              {workspaceTabs.map((workspace) => {
-                const Icon = workspace.icon;
-                const isActive = activeWorkspace === workspace.id;
-
-                return (
-                  <button
-                    key={workspace.id}
-                    type="button"
-                    onClick={() => setActiveWorkspace(workspace.id)}
-                    className={`inline-flex items-center justify-start gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? "bg-secondary text-white"
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {workspace.label}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="min-w-0 bg-[#fbfbfa] px-4 py-5 ring-1 ring-slate-200/80 sm:px-6 lg:px-8 lg:py-7">
             {activeWorkspace === "attainment" && (
-              <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                {/* Section Header */}
-                <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10">
-                      <Layers className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-900">
-                        Attainment Configuration
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                        Configure attainment levels, CO target thresholds, and
-                        percentage mapping rules for this programme.
-                      </p>
-                    </div>
+              <div className="space-y-8">
+                <div className="flex flex-col gap-4 border-b border-slate-300/70 pb-6 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className={captionClass}>Attainment Policy</p>
+                    <h3 className={panelTitleClass}>
+                      Configure institutional attainment rules
+                    </h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                      Set the academic level boundaries, course outcome target
+                      levels, and the percentage range mapping used across the
+                      programme.
+                    </p>
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleAttainmentSubmit}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-secondary px-5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+                    className={primaryButtonClass}
                   >
                     <Save className="h-4 w-4" />
                     Save Configuration
                   </button>
                 </div>
 
-                {/* Global Config Grid */}
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                  {/* Academic Boundaries */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Academic Boundaries
-                    </p>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Minimum Level
+                <div className="bg-[#f3f6f8] px-4 py-5 ring-1 ring-inset ring-slate-200/80 sm:px-5">
+                  <div className="grid grid-cols-1 divide-y divide-slate-300/70 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                    <div className="pb-6 lg:pb-0 lg:pr-7">
+                      <p className={captionClass}>Academic Boundaries</p>
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Minimum Level
+                          </span>
+                          <select
+                            value={minLevel}
+                            onChange={(event) =>
+                              handleMinMaxChange(
+                                "minLevel",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {boundValueOptions(minLevel).map((option) => (
+                              <option
+                                key={`min-bound-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
-                        <select
-                          value={minLevel}
-                          onChange={(event) =>
-                            handleMinMaxChange(
-                              "minLevel",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {boundValueOptions(minLevel).map((option) => (
-                            <option key={`min-bound-${option}`} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
 
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Maximum Level
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Maximum Level
+                          </span>
+                          <select
+                            value={maxLevel}
+                            onChange={(event) =>
+                              handleMinMaxChange(
+                                "maxLevel",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {boundValueOptions(maxLevel).map((option) => (
+                              <option
+                                key={`max-bound-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
-                        <select
-                          value={maxLevel}
-                          onChange={(event) =>
-                            handleMinMaxChange(
-                              "maxLevel",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {boundValueOptions(maxLevel).map((option) => (
-                            <option key={`max-bound-${option}`} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Direct CO */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Direct CO Targets
-                    </p>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Direct Internal
-                        </label>
-                        <select
-                          value={attainmentValues.directCOInternal}
-                          onChange={(event) =>
-                            handleLevelChange(
-                              "directCOInternal",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {attainmentValueOptions(
-                            attainmentValues.directCOInternal,
-                          ).map((option) => (
-                            <option
-                              key={`direct-internal-${option}`}
-                              value={option}
-                            >
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Direct External
-                        </label>
-                        <select
-                          value={attainmentValues.directCOExternal}
-                          onChange={(event) =>
-                            handleLevelChange(
-                              "directCOExternal",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {attainmentValueOptions(
-                            attainmentValues.directCOExternal,
-                          ).map((option) => (
-                            <option
-                              key={`direct-external-${option}`}
-                              value={option}
-                            >
-                              {option}
-                            </option>
-                          ))}
-                        </select>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Indirect CO */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Indirect CO Targets
-                    </p>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Indirect Internal
+                    <div className="py-6 lg:px-7 lg:py-0">
+                      <p className={captionClass}>Direct CO Targets</p>
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Direct Internal
+                          </span>
+                          <select
+                            value={attainmentValues.directCOInternal}
+                            onChange={(event) =>
+                              handleLevelChange(
+                                "directCOInternal",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {attainmentValueOptions(
+                              attainmentValues.directCOInternal,
+                            ).map((option) => (
+                              <option
+                                key={`direct-internal-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
-                        <select
-                          value={attainmentValues.indirectCOInternal}
-                          onChange={(event) =>
-                            handleLevelChange(
-                              "indirectCOInternal",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {attainmentValueOptions(
-                            attainmentValues.indirectCOInternal,
-                          ).map((option) => (
-                            <option
-                              key={`indirect-internal-${option}`}
-                              value={option}
-                            >
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Direct External
+                          </span>
+                          <select
+                            value={attainmentValues.directCOExternal}
+                            onChange={(event) =>
+                              handleLevelChange(
+                                "directCOExternal",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {attainmentValueOptions(
+                              attainmentValues.directCOExternal,
+                            ).map((option) => (
+                              <option
+                                key={`direct-external-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
+                    </div>
 
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Indirect External
+                    <div className="pt-6 lg:pl-7 lg:pt-0">
+                      <p className={captionClass}>Indirect CO Targets</p>
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Indirect Internal
+                          </span>
+                          <select
+                            value={attainmentValues.indirectCOInternal}
+                            onChange={(event) =>
+                              handleLevelChange(
+                                "indirectCOInternal",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {attainmentValueOptions(
+                              attainmentValues.indirectCOInternal,
+                            ).map((option) => (
+                              <option
+                                key={`indirect-internal-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
-                        <select
-                          value={attainmentValues.indirectCOExternal}
-                          onChange={(event) =>
-                            handleLevelChange(
-                              "indirectCOExternal",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                        >
-                          {attainmentValueOptions(
-                            attainmentValues.indirectCOExternal,
-                          ).map((option) => (
-                            <option
-                              key={`indirect-external-${option}`}
-                              value={option}
-                            >
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Indirect External
+                          </span>
+                          <select
+                            value={attainmentValues.indirectCOExternal}
+                            onChange={(event) =>
+                              handleLevelChange(
+                                "indirectCOExternal",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={fieldClass}
+                          >
+                            {attainmentValueOptions(
+                              attainmentValues.indirectCOExternal,
+                            ).map((option) => (
+                              <option
+                                key={`indirect-external-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Range Mapping */}
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="border-t border-slate-300/70 pt-7">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-800">
-                        Attainment Range Mapping
+                      <p className={captionClass}>Mapping Rules</p>
+                      <h3 className="mt-1 text-lg font-semibold text-[#111827]">
+                        Attainment range mapping
                       </h3>
-                      <p className="text-xs text-slate-500">
-                        Define percentage ranges and their corresponding
-                        attainment levels.
+                      <p className="mt-1 text-sm text-slate-600">
+                        Define percentage bands and the level each band earns.
                       </p>
                     </div>
 
                     <button
                       type="button"
                       onClick={handleAddRange}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      className={secondaryButtonClass}
                     >
                       <Plus className="h-4 w-4" />
                       Add Range
                     </button>
                   </div>
 
-                  <div className="max-h-80 overflow-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-white">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Min %
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Max %
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Level
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Remove
+                  <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                          <th className={tableHeadClass}>Min %</th>
+                          <th className={tableHeadClass}>Max %</th>
+                          <th className={tableHeadClass}>Level</th>
+                          <th className={`${tableHeadClass} text-right`}>
+                            Action
                           </th>
                         </tr>
                       </thead>
 
-                      <tbody className="divide-y divide-slate-200 bg-white">
+                      <tbody className="divide-y divide-slate-200/70">
                         {attainmentRanges.map((range) => (
-                          <tr key={range.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3">
+                          <tr key={range.id} className="hover:bg-[#f7fafc]">
+                            <td className="px-3 py-3.5">
                               <select
                                 value={range.min}
                                 onChange={(event) =>
@@ -1134,7 +1146,7 @@ export default function CollegeAdminPage() {
                                     event.currentTarget.value,
                                   )
                                 }
-                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                                className={`${compactFieldClass} max-w-28`}
                               >
                                 {percentageOptions.map((option) => (
                                   <option
@@ -1147,7 +1159,7 @@ export default function CollegeAdminPage() {
                               </select>
                             </td>
 
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3.5">
                               <select
                                 value={range.max}
                                 onChange={(event) =>
@@ -1157,7 +1169,7 @@ export default function CollegeAdminPage() {
                                     event.currentTarget.value,
                                   )
                                 }
-                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                                className={`${compactFieldClass} max-w-28`}
                               >
                                 {percentageOptions.map((option) => (
                                   <option
@@ -1170,7 +1182,7 @@ export default function CollegeAdminPage() {
                               </select>
                             </td>
 
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3.5">
                               <select
                                 value={range.level}
                                 onChange={(event) =>
@@ -1180,7 +1192,7 @@ export default function CollegeAdminPage() {
                                     event.currentTarget.value,
                                   )
                                 }
-                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                                className={`${compactFieldClass} max-w-28`}
                               >
                                 {mergeOptionsWithCurrentValue(
                                   attainmentOptions,
@@ -1196,11 +1208,11 @@ export default function CollegeAdminPage() {
                               </select>
                             </td>
 
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3.5 text-right">
                               <button
                                 type="button"
                                 onClick={() => handleDeleteRange(range.id)}
-                                className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                                className="text-sm font-semibold text-rose-600 transition hover:text-rose-700"
                               >
                                 Remove
                               </button>
@@ -1211,13 +1223,13 @@ export default function CollegeAdminPage() {
                     </table>
                   </div>
 
-                  <div className="border-t border-slate-200 px-4 py-3">
+                  <div className="mt-4 border-t border-slate-200 pt-4">
                     {rangeValidationMessage ? (
-                      <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                      <p className="text-sm font-medium text-amber-700">
                         Range mapping issue: {rangeValidationMessage}
                       </p>
                     ) : (
-                      <p className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                      <p className="text-sm font-medium text-emerald-700">
                         Range mapping is valid and covers 0% to 100% without
                         overlap.
                       </p>
@@ -1226,7 +1238,7 @@ export default function CollegeAdminPage() {
                 </div>
 
                 {attainmentMessage && (
-                  <p className="text-sm font-medium text-slate-600">
+                  <p className="border-t border-slate-200 pt-4 text-sm font-medium text-slate-600">
                     {attainmentMessage}
                   </p>
                 )}
@@ -1234,108 +1246,90 @@ export default function CollegeAdminPage() {
             )}
 
             {activeWorkspace === "programOutcomes" && (
-              <div className="space-y-4">
-                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
-                  <Target className="h-4 w-4 text-secondary" />
-                  <h2 className="text-base font-semibold text-slate-900">
-                    Program Outcomes
-                  </h2>
-                </header>
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Outcomes Registry</p>
+                  <h3 className={panelTitleClass}>Program outcomes</h3>
+                </div>
 
                 <form
                   onSubmit={handleAddPO}
-                  className="rounded-md border border-slate-200 bg-slate-50/60 p-2"
+                  className="grid grid-cols-1 gap-3 border-b border-slate-300/70 pb-6 sm:grid-cols-[minmax(0,1fr)_auto]"
                 >
-                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                    Quick Create
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                    <input
-                      type="text"
-                      value={newPOValue}
-                      onChange={(event) => setNewPOValue(event.target.value)}
-                      placeholder="Enter program outcome statement"
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
-                    />
-                    <button
-                      type="submit"
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
-                    >
-                      <GitBranchPlus className="h-4 w-4" />
-                      Add Program Outcome
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    value={newPOValue}
+                    onChange={(event) => setNewPOValue(event.target.value)}
+                    placeholder="Enter program outcome statement"
+                    className={fieldClass}
+                  />
+                  <button type="submit" className={primaryButtonClass}>
+                    <GitBranchPlus className="h-4 w-4" />
+                    Add Outcome
+                  </button>
                 </form>
                 {poMessage && (
-                  <p className="text-sm text-slate-600">{poMessage}</p>
+                  <p className="text-sm font-medium text-slate-600">
+                    {poMessage}
+                  </p>
                 )}
 
-                <div className="overflow-hidden rounded-md border border-slate-200">
-                  <div className="max-h-[32rem] overflow-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            ID
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Outcome Statement
-                          </th>
+                <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                        <th className={tableHeadClass}>ID</th>
+                        <th className={tableHeadClass}>Outcome Statement</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70">
+                      {pos.map((po) => (
+                        <tr key={po.id} className="hover:bg-[#f7fafc]">
+                          <td className="px-3 py-4 font-semibold text-[#111827]">
+                            {po.id}
+                          </td>
+                          <td className="px-3 py-4 leading-6 text-slate-700">
+                            {po.po}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {pos.map((po) => (
-                          <tr key={po.id}>
-                            <td className="px-3 py-2.5 font-semibold text-slate-700">
-                              {po.id}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {po.po}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {pos.length === 0 && (
-                      <p className="px-3 py-5 text-sm text-slate-500">
-                        No program outcomes added yet.
-                      </p>
-                    )}
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                  {pos.length === 0 && (
+                    <p className="px-3 py-8 text-sm text-slate-500">
+                      No program outcomes added yet.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
             {activeWorkspace === "programmeManagement" && (
-              <div className="space-y-4">
-                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
-                  <GraduationCap className="h-4 w-4 text-secondary" />
-                  <h2 className="text-base font-semibold text-slate-900">
-                    Programme Management
-                  </h2>
-                </header>
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Programme Registry</p>
+                  <h3 className={panelTitleClass}>Programme management</h3>
+                </div>
 
                 <form
                   onSubmit={handleProgrammeCreate}
-                  className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+                  className="grid grid-cols-1 gap-4 border-b border-slate-300/70 pb-6 xl:grid-cols-[minmax(0,1fr)_420px]"
                 >
-                  <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
-                    <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                      Explore Records
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_190px]">
+                  <div>
+                    <p className={`${captionClass} mb-2`}>Explore Records</p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
                       <div className="relative">
-                        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <input
                           type="text"
                           value={programmeSearch}
                           onChange={(e) => setProgrammeSearch(e.target.value)}
                           placeholder="Search programme name"
-                          className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                          className={`${fieldClass} pl-9`}
                         />
                       </div>
                       <div className="relative">
-                        <Filter className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Filter className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <select
                           value={programmeStatusFilter}
                           onChange={(e) =>
@@ -1346,7 +1340,7 @@ export default function CollegeAdminPage() {
                                 | "unassigned",
                             )
                           }
-                          className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                          className={`${fieldClass} pl-9`}
                         >
                           <option value="all">All Statuses</option>
                           <option value="assigned">Assigned</option>
@@ -1355,22 +1349,18 @@ export default function CollegeAdminPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-white p-2">
-                    <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                      Quick Create
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[220px_auto]">
+
+                  <div>
+                    <p className={`${captionClass} mb-2`}>Quick Create</p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <input
                         type="text"
                         value={newProgrammeName}
                         onChange={(e) => setNewProgrammeName(e.target.value)}
                         placeholder="New programme name"
-                        className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        className={fieldClass}
                       />
-                      <button
-                        type="submit"
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
-                      >
+                      <button type="submit" className={primaryButtonClass}>
                         <Plus className="h-4 w-4" />
                         Add
                       </button>
@@ -1378,77 +1368,70 @@ export default function CollegeAdminPage() {
                   </div>
                 </form>
                 {programmeMessage && (
-                  <p className="text-sm text-slate-600">{programmeMessage}</p>
+                  <p className="text-sm font-medium text-slate-600">
+                    {programmeMessage}
+                  </p>
                 )}
 
-                <div className="overflow-hidden rounded-md border border-slate-200">
-                  <div className="max-h-[32rem] overflow-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Programme
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Assignment Status
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Faculty Members
-                          </th>
+                <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                        <th className={tableHeadClass}>Programme</th>
+                        <th className={tableHeadClass}>Assignment Status</th>
+                        <th className={tableHeadClass}>Faculty Members</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70">
+                      {filteredProgrammeRows.map((row) => (
+                        <tr
+                          key={row.programme._id}
+                          className="hover:bg-[#f7fafc]"
+                        >
+                          <td className="px-3 py-4 font-medium text-[#111827]">
+                            {row.programme.name}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.isAssigned ? "Assigned" : "Unassigned"}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.isAssigned
+                              ? row.assignedTeachers
+                                  .map((teacher) => teacher.name)
+                                  .join(", ")
+                              : "-"}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {filteredProgrammeRows.map((row) => (
-                          <tr key={row.programme._id}>
-                            <td className="px-3 py-2.5 font-medium text-slate-800">
-                              {row.programme.name}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.isAssigned ? "Assigned" : "Unassigned"}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.isAssigned
-                                ? row.assignedTeachers
-                                    .map((teacher) => teacher.name)
-                                    .join(", ")
-                                : "-"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {filteredProgrammeRows.length === 0 && (
-                      <p className="px-3 py-5 text-sm text-slate-500">
-                        No programme records found for current filters.
-                      </p>
-                    )}
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredProgrammeRows.length === 0 && (
+                    <p className="px-3 py-8 text-sm text-slate-500">
+                      No programme records found for current filters.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
             {activeWorkspace === "facultyManagement" && (
-              <div className="space-y-4">
-                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
-                  <UserRound className="h-4 w-4 text-secondary" />
-                  <h2 className="text-base font-semibold text-slate-900">
-                    Faculty Management
-                  </h2>
-                </header>
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Faculty Directory</p>
+                  <h3 className={panelTitleClass}>Faculty management</h3>
+                </div>
 
-                <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
-                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                    Filter Records
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+                <div className="border-b border-slate-300/70 pb-6">
+                  <p className={`${captionClass} mb-2`}>Filter Records</p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <div className="relative">
-                      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <input
                         type="text"
                         value={facultySearch}
                         onChange={(e) => setFacultySearch(e.target.value)}
                         placeholder="Search faculty name"
-                        className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                        className={`${fieldClass} pl-9`}
                       />
                     </div>
                     <select
@@ -1458,7 +1441,7 @@ export default function CollegeAdminPage() {
                           e.target.value as "all" | "TEACHER" | "HOD",
                         )
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="all">All Roles</option>
                       <option value="TEACHER">Faculty Members</option>
@@ -1471,7 +1454,7 @@ export default function CollegeAdminPage() {
                           e.target.value as "all" | "assigned" | "unassigned",
                         )
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="all">All Assignments</option>
                       <option value="assigned">Assigned</option>
@@ -1482,12 +1465,10 @@ export default function CollegeAdminPage() {
 
                 <form
                   onSubmit={handleTeacherCreate}
-                  className="rounded-md border border-slate-200 bg-white p-2"
+                  className="border-b border-slate-300/70 pb-6"
                 >
-                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                    Quick Create
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_160px_160px_170px_auto]">
+                  <p className={`${captionClass} mb-2`}>Quick Create</p>
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_160px_160px_180px_auto]">
                     <input
                       type="text"
                       value={newTeacher.name}
@@ -1498,7 +1479,7 @@ export default function CollegeAdminPage() {
                         }))
                       }
                       placeholder="Faculty full name"
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     />
                     <input
                       type="text"
@@ -1510,7 +1491,7 @@ export default function CollegeAdminPage() {
                         }))
                       }
                       placeholder="Login code"
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     />
                     <input
                       type="password"
@@ -1521,8 +1502,8 @@ export default function CollegeAdminPage() {
                           password: e.target.value,
                         }))
                       }
-                      placeholder="Password (optional)"
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      placeholder="Password"
+                      className={fieldClass}
                     />
                     <select
                       value={newTeacher.role}
@@ -1532,102 +1513,88 @@ export default function CollegeAdminPage() {
                           role: e.target.value as "TEACHER" | "HOD",
                         }))
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="TEACHER">Faculty Member</option>
                       <option value="HOD">Head Of Department</option>
                     </select>
-                    <button
-                      type="submit"
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
-                    >
+                    <button type="submit" className={primaryButtonClass}>
                       <UserSquare2 className="h-4 w-4" />
                       Create
                     </button>
                   </div>
                 </form>
                 {facultyMessage && (
-                  <p className="text-sm text-slate-600">{facultyMessage}</p>
+                  <p className="text-sm font-medium text-slate-600">
+                    {facultyMessage}
+                  </p>
                 )}
 
-                <div className="overflow-hidden rounded-md border border-slate-200">
-                  <div className="max-h-[32rem] overflow-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Faculty Member
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Login Code
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Role
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Assigned Programmes
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Status
-                          </th>
+                <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                        <th className={tableHeadClass}>Faculty Member</th>
+                        <th className={tableHeadClass}>Login Code</th>
+                        <th className={tableHeadClass}>Role</th>
+                        <th className={tableHeadClass}>Assigned Programmes</th>
+                        <th className={tableHeadClass}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70">
+                      {filteredFacultyRows.map((row) => (
+                        <tr
+                          key={row.teacher._id}
+                          className="hover:bg-[#f7fafc]"
+                        >
+                          <td className="px-3 py-4 font-medium text-[#111827]">
+                            {row.teacher.name}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.teacher.code}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.teacher.role === "HOD"
+                              ? "Head Of Department"
+                              : "Faculty Member"}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.assignedProgrammes.length}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.isAssigned ? "Assigned" : "Unassigned"}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {filteredFacultyRows.map((row) => (
-                          <tr key={row.teacher._id}>
-                            <td className="px-3 py-2.5 font-medium text-slate-800">
-                              {row.teacher.name}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.teacher.code}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.teacher.role === "HOD"
-                                ? "Head Of Department"
-                                : "Faculty Member"}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.assignedProgrammes.length}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.isAssigned ? "Assigned" : "Unassigned"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {filteredFacultyRows.length === 0 && (
-                      <p className="px-3 py-5 text-sm text-slate-500">
-                        No faculty records found for current filters.
-                      </p>
-                    )}
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredFacultyRows.length === 0 && (
+                    <p className="px-3 py-8 text-sm text-slate-500">
+                      No faculty records found for current filters.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
             {activeWorkspace === "facultyAssignment" && (
-              <div className="space-y-4">
-                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
-                  <Briefcase className="h-4 w-4 text-secondary" />
-                  <h2 className="text-base font-semibold text-slate-900">
-                    Faculty Assignment
-                  </h2>
-                </header>
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Assignment Matrix</p>
+                  <h3 className={panelTitleClass}>Faculty assignment</h3>
+                </div>
 
-                <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
-                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                    Explore Records
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+                <div className="border-b border-slate-300/70 pb-6">
+                  <p className={`${captionClass} mb-2`}>Explore Records</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_190px]">
                     <div className="relative">
-                      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <input
                         type="text"
                         value={assignmentSearch}
                         onChange={(e) => setAssignmentSearch(e.target.value)}
                         placeholder="Search programme mapping"
-                        className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                        className={`${fieldClass} pl-9`}
                       />
                     </div>
                     <select
@@ -1637,7 +1604,7 @@ export default function CollegeAdminPage() {
                           e.target.value as "all" | "assigned" | "unassigned",
                         )
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="all">All Statuses</option>
                       <option value="assigned">Assigned</option>
@@ -1648,12 +1615,10 @@ export default function CollegeAdminPage() {
 
                 <form
                   onSubmit={handleAssignTeacher}
-                  className="rounded-md border border-slate-200 bg-white p-2"
+                  className="border-b border-slate-300/70 pb-6"
                 >
-                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                    Assign Action
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <p className={`${captionClass} mb-2`}>Assign Faculty</p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <select
                       value={assignment.programmeId}
                       onChange={(e) =>
@@ -1662,7 +1627,7 @@ export default function CollegeAdminPage() {
                           programmeId: e.target.value,
                         }))
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="">Choose Programme</option>
                       {programmes.map((programme) => (
@@ -1679,7 +1644,7 @@ export default function CollegeAdminPage() {
                           teacherId: e.target.value,
                         }))
                       }
-                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      className={fieldClass}
                     >
                       <option value="">Choose Faculty Member</option>
                       {teachers.map((teacher) => (
@@ -1688,61 +1653,55 @@ export default function CollegeAdminPage() {
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="submit"
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
-                    >
+                    <button type="submit" className={primaryButtonClass}>
                       <ListChecks className="h-4 w-4" />
                       Assign
                     </button>
                   </div>
                 </form>
                 {assignmentMessage && (
-                  <p className="text-sm text-slate-600">{assignmentMessage}</p>
+                  <p className="text-sm font-medium text-slate-600">
+                    {assignmentMessage}
+                  </p>
                 )}
 
-                <div className="overflow-hidden rounded-md border border-slate-200">
-                  <div className="max-h-[32rem] overflow-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Programme
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Assigned Faculty
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Status
-                          </th>
+                <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                        <th className={tableHeadClass}>Programme</th>
+                        <th className={tableHeadClass}>Assigned Faculty</th>
+                        <th className={tableHeadClass}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70">
+                      {filteredAssignmentRows.map((row) => (
+                        <tr
+                          key={row.programme._id}
+                          className="hover:bg-[#f7fafc]"
+                        >
+                          <td className="px-3 py-4 font-medium text-[#111827]">
+                            {row.programme.name}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.assignedTeachers.length > 0
+                              ? row.assignedTeachers
+                                  .map((teacher) => teacher.name)
+                                  .join(", ")
+                              : "-"}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.isAssigned ? "Assigned" : "Unassigned"}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 bg-white">
-                        {filteredAssignmentRows.map((row) => (
-                          <tr key={row.programme._id}>
-                            <td className="px-3 py-2.5 font-medium text-slate-800">
-                              {row.programme.name}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.assignedTeachers.length > 0
-                                ? row.assignedTeachers
-                                    .map((teacher) => teacher.name)
-                                    .join(", ")
-                                : "-"}
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-700">
-                              {row.isAssigned ? "Assigned" : "Unassigned"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {filteredAssignmentRows.length === 0 && (
-                      <p className="px-3 py-5 text-sm text-slate-500">
-                        No assignment records found for current filters.
-                      </p>
-                    )}
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredAssignmentRows.length === 0 && (
+                    <p className="px-3 py-8 text-sm text-slate-500">
+                      No assignment records found for current filters.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
