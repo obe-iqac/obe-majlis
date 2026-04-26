@@ -2,6 +2,26 @@
 
 import { SERVER_URL } from "@/constants";
 import { FormEvent, useEffect, useState } from "react";
+import {
+  Activity,
+  BadgeCheck,
+  BookOpen,
+  Briefcase,
+  Filter,
+  GitBranchPlus,
+  GraduationCap,
+  Layers,
+  ListChecks,
+  Plus,
+  Save,
+  Search,
+  Settings2,
+  Sparkles,
+  Target,
+  UserRound,
+  UserSquare2,
+  Users,
+} from "lucide-react";
 
 type AttainmentValues = {
   directCOInternal: number;
@@ -35,6 +55,13 @@ type Teacher = {
   role?: "TEACHER" | "HOD";
   programmes?: string[];
 };
+
+type WorkspaceMode =
+  | "attainment"
+  | "programOutcomes"
+  | "programmeManagement"
+  | "facultyManagement"
+  | "facultyAssignment";
 
 const ATTTAINMENT_BOUND_MIN = 1;
 const ATTTAINMENT_BOUND_MAX = 20;
@@ -219,9 +246,23 @@ export default function CollegeAdminPage() {
     teacherId: "",
   });
   const [pageMessage, setPageMessage] = useState("");
-  const [rangeValidationMessage, setRangeValidationMessage] = useState(
-    validateAttainmentRanges(attainmentRanges, minLevel, maxLevel),
-  );
+  const [activeWorkspace, setActiveWorkspace] =
+    useState<WorkspaceMode>("attainment");
+  const [facultySearch, setFacultySearch] = useState("");
+  const [facultyRoleFilter, setFacultyRoleFilter] = useState<
+    "all" | "TEACHER" | "HOD"
+  >("all");
+  const [facultyAssignmentFilter, setFacultyAssignmentFilter] = useState<
+    "all" | "assigned" | "unassigned"
+  >("all");
+  const [programmeSearch, setProgrammeSearch] = useState("");
+  const [programmeStatusFilter, setProgrammeStatusFilter] = useState<
+    "all" | "assigned" | "unassigned"
+  >("all");
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<
+    "all" | "assigned" | "unassigned"
+  >("all");
 
   const attainmentOptions = generateAttainmentOptions(minLevel, maxLevel);
   const percentageOptions = generateNumericOptions(0, 100);
@@ -229,6 +270,7 @@ export default function CollegeAdminPage() {
     ATTTAINMENT_BOUND_MIN,
     ATTTAINMENT_BOUND_MAX,
   );
+
   useEffect(() => {
     async function fetchInitialData() {
       const res = await fetch(
@@ -290,12 +332,6 @@ export default function CollegeAdminPage() {
 
     fetchInitialData();
   }, []);
-
-  useEffect(() => {
-    setRangeValidationMessage(
-      validateAttainmentRanges(attainmentRanges, minLevel, maxLevel),
-    );
-  }, [attainmentRanges, minLevel, maxLevel]);
 
   const handleLevelChange = (key: keyof AttainmentValues, rawValue: string) => {
     const nextValue = Number(rawValue);
@@ -486,11 +522,11 @@ export default function CollegeAdminPage() {
     event.preventDefault();
 
     if (!newTeacher.name.trim() || !newTeacher.code.trim()) {
-      setPageMessage("TEACHER name and login code are required.");
+      setPageMessage("Faculty member name and login code are required.");
       return;
     }
 
-    setPageMessage("Creating TEACHER...");
+    setPageMessage("Creating faculty member account...");
 
     const result = await submitToBackend(
       "/college_admin/add-teacher",
@@ -518,7 +554,7 @@ export default function CollegeAdminPage() {
         ...prev,
         teacherId: prev.teacherId || nextTeacher._id,
       }));
-      setPageMessage("TEACHER created successfully!");
+      setPageMessage("Faculty member account created successfully!");
     }
     console.log("Teacher creation result:", result);
   };
@@ -526,11 +562,11 @@ export default function CollegeAdminPage() {
   const handleAssignTeacher = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!assignment.programmeId || !assignment.teacherId) {
-      setPageMessage("Select both a programme and a TEACHER.");
+      setPageMessage("Select both a programme and a faculty member.");
       return;
     }
 
-    setPageMessage("Assigning TEACHER to programme...");
+    setPageMessage("Assigning faculty member to programme...");
 
     const result = await submitToBackend(
       "/college_admin/assign-teacher",
@@ -549,12 +585,12 @@ export default function CollegeAdminPage() {
       );
 
       setProgrammes(updatedProgrammes);
-      setPageMessage("TEACHER assigned to programme successfully!");
+      setPageMessage("Faculty member assigned to programme successfully!");
     }
   };
 
-  const assignedCount = programmes?.filter(
-    (programme) => programme.teacherId,
+  const assignedCount = teachers?.filter(
+    (teacher) => teacher.programmes && teacher.programmes.length > 0,
   ).length;
 
   const getTeacherAssignedProgrammes = (teacherProgrammeIds: string[] = []) =>
@@ -568,685 +604,1188 @@ export default function CollegeAdminPage() {
   const boundValueOptions = (currentValue: number) =>
     mergeOptionsWithCurrentValue(configuredBoundOptions, currentValue);
 
+  const rangeValidationMessage = validateAttainmentRanges(
+    attainmentRanges,
+    minLevel,
+    maxLevel,
+  );
+
+  const kpis = [
+    {
+      title: "Program Outcomes",
+      value: pos?.length ?? 0,
+      icon: Target,
+      hint: "Defined outcome statements",
+    },
+    {
+      title: "Programmes",
+      value: programmes?.length ?? 0,
+      icon: BookOpen,
+      hint: "Active programme records",
+    },
+    {
+      title: "Faculty Members",
+      value: teachers?.length ?? 0,
+      icon: Users,
+      hint: "Accounts available for assignment",
+    },
+    {
+      title: "Assigned Programmes",
+      value: assignedCount ?? 0,
+      icon: BadgeCheck,
+      hint: "Programmes with faculty ownership",
+    },
+  ];
+
+  const getProgrammeAssignedTeachers = (programme: Programme) =>
+    teachers.filter(
+      (teacher) =>
+        teacher._id === programme.teacherId ||
+        Boolean(
+          teacher.programmes?.some(
+            (progId) => progId.toString() === programme._id.toString(),
+          ),
+        ),
+    );
+
+  const getTeacherAssignedProgrammesResolved = (teacher: Teacher) => {
+    const fromTeacherProgrammes = getTeacherAssignedProgrammes(
+      teacher.programmes,
+    );
+    const fromProgrammeOwner = programmes.filter(
+      (programme) => programme.teacherId === teacher._id,
+    );
+
+    const unique = new Map<string, Programme>();
+    [...fromTeacherProgrammes, ...fromProgrammeOwner].forEach((programme) => {
+      unique.set(programme._id, programme);
+    });
+
+    return Array.from(unique.values());
+  };
+
+  const programmeRows = programmes.map((programme) => {
+    const assignedTeachers = getProgrammeAssignedTeachers(programme);
+    return {
+      programme,
+      assignedTeachers,
+      isAssigned: assignedTeachers.length > 0,
+    };
+  });
+
+  const filteredProgrammeRows = programmeRows.filter((row) => {
+    const searchMatch = row.programme.name
+      .toLowerCase()
+      .includes(programmeSearch.trim().toLowerCase());
+
+    const statusMatch =
+      programmeStatusFilter === "all" ||
+      (programmeStatusFilter === "assigned" && row.isAssigned) ||
+      (programmeStatusFilter === "unassigned" && !row.isAssigned);
+
+    return searchMatch && statusMatch;
+  });
+
+  const facultyRows = teachers.map((teacher) => {
+    const assignedProgrammes = getTeacherAssignedProgrammesResolved(teacher);
+    return {
+      teacher,
+      assignedProgrammes,
+      isAssigned: assignedProgrammes.length > 0,
+    };
+  });
+
+  const filteredFacultyRows = facultyRows.filter((row) => {
+    const searchMatch = row.teacher.name
+      .toLowerCase()
+      .includes(facultySearch.trim().toLowerCase());
+
+    const roleMatch =
+      facultyRoleFilter === "all" || row.teacher.role === facultyRoleFilter;
+
+    const assignmentMatch =
+      facultyAssignmentFilter === "all" ||
+      (facultyAssignmentFilter === "assigned" && row.isAssigned) ||
+      (facultyAssignmentFilter === "unassigned" && !row.isAssigned);
+
+    return searchMatch && roleMatch && assignmentMatch;
+  });
+
+  const filteredAssignmentRows = programmeRows.filter((row) => {
+    const searchMatch = row.programme.name
+      .toLowerCase()
+      .includes(assignmentSearch.trim().toLowerCase());
+
+    const statusMatch =
+      assignmentStatusFilter === "all" ||
+      (assignmentStatusFilter === "assigned" && row.isAssigned) ||
+      (assignmentStatusFilter === "unassigned" && !row.isAssigned);
+
+    return searchMatch && statusMatch;
+  });
+
+  const workspaceTabs: {
+    id: WorkspaceMode;
+    label: string;
+    icon: typeof Layers;
+  }[] = [
+    {
+      id: "attainment",
+      label: "Attainment Configuration",
+      icon: Layers,
+    },
+    {
+      id: "programOutcomes",
+      label: "Program Outcomes",
+      icon: Target,
+    },
+    {
+      id: "programmeManagement",
+      label: "Programme Management",
+      icon: GraduationCap,
+    },
+    {
+      id: "facultyManagement",
+      label: "Faculty Management",
+      icon: UserRound,
+    },
+    {
+      id: "facultyAssignment",
+      label: "Faculty Assignment",
+      icon: Briefcase,
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-[color:var(--color-primary)] px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mx-auto w-full max-w-6xl space-y-6">
-        <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_45%),var(--color-primary)] px-4 py-8 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          {/* Header */}
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">
-                College Admin Dashboard
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold tracking-wide text-slate-600">
+                <Sparkles className="h-3.5 w-3.5 text-secondary" />
+                OBE Administration Console
+              </div>
+
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+                College Administration Dashboard
               </h1>
-              <p className="mt-1 text-sm text-slate-600">
-                Manage attainment inputs, program outcomes, programmes, and
-                TEACHER assignments from one place.
+
+              <p className="mt-1.5 text-sm text-slate-500 sm:text-[15px]">
+                Manage programmes, faculty accounts, and academic assignments
+                from one unified workspace.
               </p>
+            </div>
+
+            {/* Compact Status Panels */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[420px]">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Active Workspace
+                </p>
+                <p className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Settings2 className="h-4 w-4 text-secondary" />
+                  {
+                    workspaceTabs.find(
+                      (workspace) => workspace.id === activeWorkspace,
+                    )?.label
+                  }
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Faculty Coverage
+                </p>
+                <p className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Activity className="h-4 w-4 text-secondary" />
+                  {programmeRows.filter((row) => row.isAssigned).length} of{" "}
+                  {programmes?.length ?? 0} Programmes Assigned
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">POs</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">
-                {pos?.length ?? 0}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">Programmes</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">
-                {programmes?.length ?? 0}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">Teachers</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">
-                {teachers?.length ?? 0}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">Assigned Programmes</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">
-                {assignedCount ?? 0}
-              </p>
-            </div>
+          {/* KPI Strip */}
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon;
+
+              return (
+                <article
+                  key={kpi.title}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {kpi.title}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">
+                        {kpi.value}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-white p-2 text-secondary shadow-sm">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-500">{kpi.hint}</p>
+                </article>
+              );
+            })}
           </div>
 
+          {/* Page Message */}
           {pageMessage && (
-            <p className="mt-5 rounded-md border border-tertiary/50 bg-[color:var(--color-primary)] px-3 py-2 text-sm text-slate-800">
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600">
               {pageMessage}
-            </p>
+            </div>
           )}
         </section>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <form
-            onSubmit={handleAttainmentSubmit}
-            className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  CO Attainment Values
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Choose attainment levels from the configurable range below.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-md border border-slate-200 bg-[color:var(--color-primary)] p-4">
-              <h3 className="text-base font-semibold text-slate-900">
-                Attainment Level Settings
-              </h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Configure the minimum and maximum attainment levels used by all
-                dropdowns on this page.
-              </p>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">
-                    Minimum Attainment Level
-                  </label>
-                  <select
-                    value={minLevel}
-                    onChange={(event) =>
-                      handleMinMaxChange("minLevel", event.currentTarget.value)
-                    }
-                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                  >
-                    {boundValueOptions(minLevel).map((option) => (
-                      <option key={`min-bound-${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">
-                    Maximum Attainment Level
-                  </label>
-                  <select
-                    value={maxLevel}
-                    onChange={(event) =>
-                      handleMinMaxChange("maxLevel", event.currentTarget.value)
-                    }
-                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                  >
-                    {boundValueOptions(maxLevel).map((option) => (
-                      <option key={`max-bound-${option}`} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Direct CO Internal Attainment
-                </label>
-                <select
-                  value={attainmentValues?.directCOInternal}
-                  onChange={(event) =>
-                    handleLevelChange(
-                      "directCOInternal",
-                      event.currentTarget.value,
-                    )
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                >
-                  {attainmentValueOptions(
-                    attainmentValues.directCOInternal,
-                  ).map((option) => (
-                    <option key={`direct-internal-${option}`} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">
-                  Select an attainment level from the configured range.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Direct CO External Attainment
-                </label>
-                <select
-                  value={attainmentValues?.directCOExternal}
-                  onChange={(event) =>
-                    handleLevelChange(
-                      "directCOExternal",
-                      event.currentTarget.value,
-                    )
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                >
-                  {attainmentValueOptions(
-                    attainmentValues.directCOExternal,
-                  ).map((option) => (
-                    <option key={`direct-external-${option}`} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">
-                  Select an attainment level from the configured range.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Indirect CO Internal Attainment
-                </label>
-                <select
-                  value={attainmentValues?.indirectCOInternal}
-                  onChange={(event) =>
-                    handleLevelChange(
-                      "indirectCOInternal",
-                      event.currentTarget.value,
-                    )
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                >
-                  {attainmentValueOptions(
-                    attainmentValues.indirectCOInternal,
-                  ).map((option) => (
-                    <option key={`indirect-internal-${option}`} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">
-                  Select an attainment level from the configured range.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Indirect CO External Attainment
-                </label>
-                <select
-                  value={attainmentValues?.indirectCOExternal}
-                  onChange={(event) =>
-                    handleLevelChange(
-                      "indirectCOExternal",
-                      event.currentTarget.value,
-                    )
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                >
-                  {attainmentValueOptions(
-                    attainmentValues.indirectCOExternal,
-                  ).map((option) => (
-                    <option key={`indirect-external-${option}`} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500">
-                  Select an attainment level from the configured range.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-md border border-slate-200 bg-[color:var(--color-primary)] p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">
-                    Attainment Range Mapping
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Define how raw percentages map to attainment levels using
-                    the configured range.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddRange}
-                  className="h-10 rounded-md border border-secondary px-4 text-sm font-semibold text-secondary transition hover:bg-blue-50"
-                >
-                  Add Range
-                </button>
-              </div>
-
-              <div className="mt-4 overflow-x-auto rounded-md border border-slate-200 bg-white">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700">
-                        Min %
-                      </th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700">
-                        Max %
-                      </th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700">
-                        Level
-                      </th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {attainmentRanges?.map((range) => (
-                      <tr key={range.id}>
-                        <td className="px-3 py-2">
-                          <select
-                            value={range.min}
-                            onChange={(event) =>
-                              handleRangeSelectChange(
-                                range.id,
-                                "min",
-                                event.currentTarget.value,
-                              )
-                            }
-                            className="h-9 w-24 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
-                          >
-                            {percentageOptions.map((option) => (
-                              <option
-                                key={`range-${range.id}-min-${option}`}
-                                value={option}
-                              >
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={range.max}
-                            onChange={(event) =>
-                              handleRangeSelectChange(
-                                range.id,
-                                "max",
-                                event.currentTarget.value,
-                              )
-                            }
-                            className="h-9 w-24 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
-                          >
-                            {percentageOptions.map((option) => (
-                              <option
-                                key={`range-${range.id}-max-${option}`}
-                                value={option}
-                              >
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={range.level}
-                            onChange={(event) =>
-                              handleRangeSelectChange(
-                                range.id,
-                                "level",
-                                event.currentTarget.value,
-                              )
-                            }
-                            className="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 outline-none transition focus:border-secondary"
-                          >
-                            {mergeOptionsWithCurrentValue(
-                              attainmentOptions,
-                              range.level,
-                            ).map((option) => (
-                              <option
-                                key={`range-${range.id}-level-${option}`}
-                                value={option}
-                              >
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRange(range.id)}
-                            className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {rangeValidationMessage ? (
-                <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Range mapping issue: {rangeValidationMessage}
-                </p>
-              ) : (
-                <p className="mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                  Range mapping is valid and covers 0% to 100% without overlap.
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="mt-5 h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
-            >
-              Save Attainment Configuration
-            </button>
-          </form>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Program Outcomes
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Add as many POs as needed. Labels are generated automatically.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleAddPO}
-              className="mt-5 flex flex-col gap-4 sm:flex-row"
-            >
-              <input
-                type="text"
-                value={newPOValue}
-                onChange={(event) => setNewPOValue(event.target.value)}
-                placeholder="Enter PO description"
-                className="h-10 flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-              />
-              <button
-                type="submit"
-                className="h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
-              >
-                Add PO
-              </button>
-            </form>
-
-            <div className="mt-5 grid grid-cols-1 gap-3">
-              {pos?.map((po) => (
-                <div
-                  key={po.id}
-                  className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
-                >
-                  <p className="text-sm font-semibold text-slate-900">
-                    {po.id}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">{po.po}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </section>
-
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Create Programmes
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Add programme names and keep the list local for now.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleProgrammeCreate}
-              className="mt-5 flex flex-col gap-4 sm:flex-row"
-            >
-              <input
-                type="text"
-                value={newProgrammeName}
-                onChange={(event) => setNewProgrammeName(event.target.value)}
-                placeholder="Enter programme name"
-                className="h-10 flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-              />
-              <button
-                type="submit"
-                className="h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
-              >
-                Create Programme
-              </button>
-            </form>
-
-            <div className="mt-5 space-y-3">
-              {programmes?.map((programme) => {
-                const assignedTeacher = teachers.find(
-                  (teacher) => teacher._id === programme.teacherId,
-                );
+        <section className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+              {workspaceTabs.map((workspace) => {
+                const Icon = workspace.icon;
+                const isActive = activeWorkspace === workspace.id;
 
                 return (
-                  <div
-                    key={programme._id}
-                    className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
+                  <button
+                    key={workspace.id}
+                    type="button"
+                    onClick={() => setActiveWorkspace(workspace.id)}
+                    className={`group relative inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-300 ${
+                      isActive
+                        ? "border-secondary bg-secondary text-white shadow-md shadow-secondary/20"
+                        : "border-slate-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-secondary/40 hover:shadow-md"
+                    }`}
                   >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {programme.name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {assignedTeacher
-                        ? `Assigned TEACHER: ${assignedTeacher.name}`
-                        : "Assigned TEACHER: Not assigned yet"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Create TEACHER
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Create TEACHER entries with a name and login code.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleTeacherCreate}
-              className="mt-5 grid grid-cols-1 gap-4"
-            >
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  TEACHER Name
-                </label>
-                <input
-                  type="text"
-                  value={newTeacher.name}
-                  onChange={(event) =>
-                    setNewTeacher((prev) => ({
-                      ...prev,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter TEACHER name"
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Login Code
-                </label>
-                <input
-                  type="text"
-                  value={newTeacher.code}
-                  onChange={(event) =>
-                    setNewTeacher((prev) => ({
-                      ...prev,
-                      code: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter login code"
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Password (Optional)
-                </label>
-                <input
-                  type="password"
-                  value={newTeacher.password}
-                  onChange={(event) =>
-                    setNewTeacher((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter password or leave empty"
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-secondary"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">
-                  Type
-                </label>
-                <select
-                  value={newTeacher.role}
-                  onChange={(event) =>
-                    setNewTeacher((prev) => ({
-                      ...prev,
-                      role: event.target.value as "TEACHER" | "HOD",
-                    }))
-                  }
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-                >
-                  <option value="TEACHER">TEACHER</option>
-                  <option value="HOD">HOD</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="h-10 rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
-              >
-                Create TEACHER
-              </button>
-            </form>
-
-            <div className="mt-5 space-y-3">
-              {teachers?.map((teacher) => {
-                const assignedProgrammes = getTeacherAssignedProgrammes(
-                  teacher.programmes,
-                );
-
-                return (
-                  <div
-                    key={teacher._id}
-                    className="rounded-md border border-slate-200 bg-[color:var(--color-primary)] px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {teacher.name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Login Code: {teacher.code}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Type: {teacher.role ?? "TEACHER"}
-                    </p>
-
-                    <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Assigned Programmes
-                      </p>
-                      {assignedProgrammes.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                          {assignedProgrammes.map((programme) => (
-                            <li key={programme._id}>{programme.name}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-2 text-sm text-slate-500">
-                          No programmes assigned yet.
-                        </p>
-                      )}
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+                        isActive
+                          ? "bg-white/15"
+                          : "bg-slate-100 text-slate-500 group-hover:bg-secondary/10 group-hover:text-secondary"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
                     </div>
-                  </div>
+
+                    <span>{workspace.label}</span>
+                  </button>
                 );
               })}
             </div>
-          </section>
-        </section>
-
-        <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              Assign TEACHER To Programme
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Choose a programme and connect it to an TEACHER. Submission only
-              logs the payload for now.
-            </p>
           </div>
 
-          <form
-            onSubmit={handleAssignTeacher}
-            className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3"
-          >
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Programme
-              </label>
-              <select
-                value={assignment.programmeId}
-                onChange={(event) =>
-                  setAssignment((prev) => ({
-                    ...prev,
-                    programmeId: event.target.value,
-                  }))
-                }
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-              >
-                <option value="">Select Programme</option>
-                {programmes?.map((programme) => (
-                  <option key={programme._id} value={programme._id}>
-                    {programme.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_26px_-20px_rgba(37,99,235,0.45)] sm:p-6">
+            {activeWorkspace === "attainment" && (
+              <div className="space-y-5">
+                <div className="flex items-start gap-2.5">
+                  <Layers className="mt-0.5 h-4 w-4 text-secondary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Attainment Configuration
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Configure CO level values and range mapping for attainment
+                      analytics.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                TEACHER
-              </label>
-              <select
-                value={assignment.teacherId}
-                onChange={(event) =>
-                  setAssignment((prev) => ({
-                    ...prev,
-                    teacherId: event.target.value,
-                  }))
-                }
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
-              >
-                <option value="">Select TEACHER</option>
-                {teachers?.map((teacher) => (
-                  <option key={teacher._id} value={teacher._id}>
-                    {teacher.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <form onSubmit={handleAttainmentSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Attainment Level Boundaries
+                      </h3>
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">
+                            Minimum Level
+                          </label>
+                          <select
+                            value={minLevel}
+                            onChange={(event) =>
+                              handleMinMaxChange(
+                                "minLevel",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          >
+                            {boundValueOptions(minLevel).map((option) => (
+                              <option
+                                key={`min-bound-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">
+                            Maximum Level
+                          </label>
+                          <select
+                            value={maxLevel}
+                            onChange={(event) =>
+                              handleMinMaxChange(
+                                "maxLevel",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          >
+                            {boundValueOptions(maxLevel).map((option) => (
+                              <option
+                                key={`max-bound-${option}`}
+                                value={option}
+                              >
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
 
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="h-10 w-full rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95"
-              >
-                Assign TEACHER
-              </button>
-            </div>
-          </form>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Direct CO Internal
+                        </label>
+                        <select
+                          value={attainmentValues.directCOInternal}
+                          onChange={(event) =>
+                            handleLevelChange(
+                              "directCOInternal",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                        >
+                          {attainmentValueOptions(
+                            attainmentValues.directCOInternal,
+                          ).map((option) => (
+                            <option
+                              key={`direct-internal-${option}`}
+                              value={option}
+                            >
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Direct CO External
+                        </label>
+                        <select
+                          value={attainmentValues.directCOExternal}
+                          onChange={(event) =>
+                            handleLevelChange(
+                              "directCOExternal",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                        >
+                          {attainmentValueOptions(
+                            attainmentValues.directCOExternal,
+                          ).map((option) => (
+                            <option
+                              key={`direct-external-${option}`}
+                              value={option}
+                            >
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Indirect CO Internal
+                        </label>
+                        <select
+                          value={attainmentValues.indirectCOInternal}
+                          onChange={(event) =>
+                            handleLevelChange(
+                              "indirectCOInternal",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                        >
+                          {attainmentValueOptions(
+                            attainmentValues.indirectCOInternal,
+                          ).map((option) => (
+                            <option
+                              key={`indirect-internal-${option}`}
+                              value={option}
+                            >
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">
+                          Indirect CO External
+                        </label>
+                        <select
+                          value={attainmentValues.indirectCOExternal}
+                          onChange={(event) =>
+                            handleLevelChange(
+                              "indirectCOExternal",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                        >
+                          {attainmentValueOptions(
+                            attainmentValues.indirectCOExternal,
+                          ).map((option) => (
+                            <option
+                              key={`indirect-external-${option}`}
+                              value={option}
+                            >
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                      <h3 className="text-sm font-semibold text-slate-800">
+                        Attainment Range Mapping
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={handleAddRange}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-secondary/30 bg-white px-3 text-xs font-semibold text-secondary"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Range
+                      </button>
+                    </div>
+
+                    <div className="max-h-72 overflow-auto">
+                      <table className="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead className="bg-white">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Min %
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Max %
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Level
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Action
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                          {attainmentRanges.map((range) => (
+                            <tr key={range.id}>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={range.min}
+                                  onChange={(event) =>
+                                    handleRangeSelectChange(
+                                      range.id,
+                                      "min",
+                                      event.currentTarget.value,
+                                    )
+                                  }
+                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                >
+                                  {percentageOptions.map((option) => (
+                                    <option
+                                      key={`range-${range.id}-min-${option}`}
+                                      value={option}
+                                    >
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={range.max}
+                                  onChange={(event) =>
+                                    handleRangeSelectChange(
+                                      range.id,
+                                      "max",
+                                      event.currentTarget.value,
+                                    )
+                                  }
+                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                >
+                                  {percentageOptions.map((option) => (
+                                    <option
+                                      key={`range-${range.id}-max-${option}`}
+                                      value={option}
+                                    >
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={range.level}
+                                  onChange={(event) =>
+                                    handleRangeSelectChange(
+                                      range.id,
+                                      "level",
+                                      event.currentTarget.value,
+                                    )
+                                  }
+                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                                >
+                                  {mergeOptionsWithCurrentValue(
+                                    attainmentOptions,
+                                    range.level,
+                                  ).map((option) => (
+                                    <option
+                                      key={`range-${range.id}-level-${option}`}
+                                      value={option}
+                                    >
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRange(range.id)}
+                                  className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-semibold text-rose-700"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {rangeValidationMessage ? (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                      Range mapping issue: {rangeValidationMessage}
+                    </p>
+                  ) : (
+                    <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                      Range mapping is valid and covers 0% to 100% without
+                      overlap.
+                    </p>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="inline-flex h-9 items-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
+                    >
+                      <Save className="h-4 w-4" />
+                      Save Attainment Configuration
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {activeWorkspace === "programOutcomes" && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <Target className="mt-0.5 h-4 w-4 text-secondary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Program Outcomes
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Maintain concise, measurable outcome statements for
+                      curriculum governance.
+                    </p>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={handleAddPO}
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                >
+                  <input
+                    type="text"
+                    value={newPOValue}
+                    onChange={(event) => setNewPOValue(event.target.value)}
+                    placeholder="Enter program outcome statement"
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-secondary"
+                  />
+                  <button
+                    type="submit"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
+                  >
+                    <GitBranchPlus className="h-4 w-4" />
+                    Add Program Outcome
+                  </button>
+                </form>
+
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <div className="max-h-[28rem] overflow-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            ID
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Outcome Statement
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {pos.map((po) => (
+                          <tr key={po.id}>
+                            <td className="px-3 py-2.5 font-semibold text-slate-700">
+                              {po.id}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {po.po}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {pos.length === 0 && (
+                      <p className="px-3 py-5 text-sm text-slate-500">
+                        No program outcomes added yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeWorkspace === "programmeManagement" && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <GraduationCap className="mt-0.5 h-4 w-4 text-secondary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Programme Management
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Create programmes and monitor assignment readiness with
+                      focused operational controls.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <form onSubmit={handleProgrammeCreate} className="space-y-4">
+                    {/* Search & Filter Controls */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                      {/* Search Programmes */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Search Programmes
+                        </label>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={programmeSearch}
+                            onChange={(e) => setProgrammeSearch(e.target.value)}
+                            placeholder="Search by programme name..."
+                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Programme Filter */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Assignment Filter
+                        </label>
+                        <div className="relative">
+                          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <select
+                            value={programmeStatusFilter}
+                            onChange={(e) =>
+                              setProgrammeStatusFilter(
+                                e.target.value as
+                                  | "all"
+                                  | "assigned"
+                                  | "unassigned",
+                              )
+                            }
+                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                          >
+                            <option value="all">All Programmes</option>
+                            <option value="assigned">Assigned Only</option>
+                            <option value="unassigned">Unassigned Only</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add New Programme */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Create New Programme
+                        </label>
+                        <input
+                          type="text"
+                          value={newProgrammeName}
+                          onChange={(e) => setNewProgrammeName(e.target.value)}
+                          placeholder="Enter programme title..."
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        />
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          type="submit"
+                          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Programme
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <div className="max-h-[30rem] overflow-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Programme
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Assignment Status
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Faculty Members
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {filteredProgrammeRows.map((row) => (
+                          <tr key={row.programme._id}>
+                            <td className="px-3 py-2.5 font-medium text-slate-800">
+                              {row.programme.name}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.isAssigned ? "Assigned" : "Unassigned"}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.isAssigned
+                                ? row.assignedTeachers
+                                    .map((teacher) => teacher.name)
+                                    .join(", ")
+                                : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {filteredProgrammeRows.length === 0 && (
+                      <p className="px-3 py-5 text-sm text-slate-500">
+                        No programme records found for current filters.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeWorkspace === "facultyManagement" && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <UserRound className="mt-0.5 h-4 w-4 text-secondary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Faculty Management
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Manage faculty accounts with search and role/assignment
+                      filtering for large institutional datasets.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <form onSubmit={handleTeacherCreate} className="space-y-4">
+                    {/* Faculty Search & Filters */}
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Search Faculty
+                        </label>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={facultySearch}
+                            onChange={(e) => setFacultySearch(e.target.value)}
+                            placeholder="Search by faculty name..."
+                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Faculty Role Filter
+                        </label>
+                        <select
+                          value={facultyRoleFilter}
+                          onChange={(e) =>
+                            setFacultyRoleFilter(
+                              e.target.value as "all" | "TEACHER" | "HOD",
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="all">All Roles</option>
+                          <option value="TEACHER">Faculty Members</option>
+                          <option value="HOD">Heads of Department</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Programme Assignment
+                        </label>
+                        <select
+                          value={facultyAssignmentFilter}
+                          onChange={(e) =>
+                            setFacultyAssignmentFilter(
+                              e.target.value as
+                                | "all"
+                                | "assigned"
+                                | "unassigned",
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="all">All Faculty</option>
+                          <option value="assigned">Assigned Only</option>
+                          <option value="unassigned">Unassigned Only</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="border-t border-slate-200 pt-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Create Faculty Account
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                        <input
+                          type="text"
+                          value={newTeacher.name}
+                          onChange={(e) =>
+                            setNewTeacher((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
+                          placeholder="Faculty full name"
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        />
+
+                        <input
+                          type="text"
+                          value={newTeacher.code}
+                          onChange={(e) =>
+                            setNewTeacher((prev) => ({
+                              ...prev,
+                              code: e.target.value,
+                            }))
+                          }
+                          placeholder="Unique login code"
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        />
+
+                        <input
+                          type="password"
+                          value={newTeacher.password}
+                          onChange={(e) =>
+                            setNewTeacher((prev) => ({
+                              ...prev,
+                              password: e.target.value,
+                            }))
+                          }
+                          placeholder="Password (optional)"
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        />
+
+                        <select
+                          value={newTeacher.role}
+                          onChange={(e) =>
+                            setNewTeacher((prev) => ({
+                              ...prev,
+                              role: e.target.value as "TEACHER" | "HOD",
+                            }))
+                          }
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="TEACHER">Faculty Member</option>
+                          <option value="HOD">Head of Department</option>
+                        </select>
+
+                        <button
+                          type="submit"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                        >
+                          <UserSquare2 className="h-4 w-4" />
+                          Create Account
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <div className="max-h-[30rem] overflow-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Faculty Member
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Login Code
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Role
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Assigned Programmes
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {filteredFacultyRows.map((row) => (
+                          <tr key={row.teacher._id}>
+                            <td className="px-3 py-2.5 font-medium text-slate-800">
+                              {row.teacher.name}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.teacher.code}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.teacher.role === "HOD"
+                                ? "Head Of Department"
+                                : "Faculty Member"}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.assignedProgrammes.length}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.isAssigned ? "Assigned" : "Unassigned"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {filteredFacultyRows.length === 0 && (
+                      <p className="px-3 py-5 text-sm text-slate-500">
+                        No faculty records found for current filters.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeWorkspace === "facultyAssignment" && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <Briefcase className="mt-0.5 h-4 w-4 text-secondary" />
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Faculty Assignment
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Execute assignment actions and track current ownership in
+                      a compact explorer.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <form onSubmit={handleAssignTeacher} className="space-y-4">
+                    {/* Assignment Search Controls */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Search Programme Mapping
+                        </label>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={assignmentSearch}
+                            onChange={(e) =>
+                              setAssignmentSearch(e.target.value)
+                            }
+                            placeholder="Search by programme name..."
+                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Assignment Status
+                        </label>
+                        <select
+                          value={assignmentStatusFilter}
+                          onChange={(e) =>
+                            setAssignmentStatusFilter(
+                              e.target.value as
+                                | "all"
+                                | "assigned"
+                                | "unassigned",
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="all">All Programmes</option>
+                          <option value="assigned">Assigned Only</option>
+                          <option value="unassigned">Unassigned Only</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="border-t border-slate-200 pt-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Assign Faculty To Programme
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                        <select
+                          value={assignment.programmeId}
+                          onChange={(e) =>
+                            setAssignment((prev) => ({
+                              ...prev,
+                              programmeId: e.target.value,
+                            }))
+                          }
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="">Choose Programme</option>
+                          {programmes.map((programme) => (
+                            <option key={programme._id} value={programme._id}>
+                              {programme.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={assignment.teacherId}
+                          onChange={(e) =>
+                            setAssignment((prev) => ({
+                              ...prev,
+                              teacherId: e.target.value,
+                            }))
+                          }
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                        >
+                          <option value="">Choose Faculty Member</option>
+                          {teachers.map((teacher) => (
+                            <option key={teacher._id} value={teacher._id}>
+                              {teacher.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="submit"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                        >
+                          <ListChecks className="h-4 w-4" />
+                          Assign Faculty
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="overflow-hidden rounded-lg border border-slate-200">
+                  <div className="max-h-[30rem] overflow-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Programme
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Assigned Faculty
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {filteredAssignmentRows.map((row) => (
+                          <tr key={row.programme._id}>
+                            <td className="px-3 py-2.5 font-medium text-slate-800">
+                              {row.programme.name}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.assignedTeachers.length > 0
+                                ? row.assignedTeachers
+                                    .map((teacher) => teacher.name)
+                                    .join(", ")
+                                : "-"}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">
+                              {row.isAssigned ? "Assigned" : "Unassigned"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {filteredAssignmentRows.length === 0 && (
+                      <p className="px-3 py-5 text-sm text-slate-500">
+                        No assignment records found for current filters.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </section>
       </div>
     </main>
