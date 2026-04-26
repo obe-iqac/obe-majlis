@@ -185,3 +185,28 @@ export const AssignTeacherToProgram = async (req, res) => {
     });
   }
 };
+
+export const UpdateProgrammeOutcomes = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { pos } = req.body;
+    if (!pos || !Array.isArray(pos)) {
+      return res.status(400).json({
+        status: "error",
+        message: "POs are required",
+      });
+    }
+    req.college.pos = pos;
+    await req.college.save();
+    res.status(200).json({
+      status: "ok",
+      message: "Programme outcomes updated",
+    });
+  } catch (error) {
+    console.error("Error updating programme outcomes:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to update programme outcomes",
+    });
+  }
+};

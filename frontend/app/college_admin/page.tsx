@@ -3,7 +3,6 @@
 import { SERVER_URL } from "@/constants";
 import { FormEvent, useEffect, useState } from "react";
 import {
-  Activity,
   BadgeCheck,
   BookOpen,
   Briefcase,
@@ -15,8 +14,6 @@ import {
   Plus,
   Save,
   Search,
-  Settings2,
-  Sparkles,
   Target,
   UserRound,
   UserSquare2,
@@ -111,6 +108,30 @@ const mergeOptionsWithCurrentValue = (
   return [...options, currentValue].sort((left, right) => left - right);
 };
 
+const normalizeAttainmentRanges = (
+  ranges: Partial<AttainmentRange>[] = [],
+): AttainmentRange[] => {
+  const usedIds = new Set<string>();
+
+  return ranges.map((range, index) => {
+    const id =
+      range.id && !usedIds.has(range.id)
+        ? range.id
+        : `range-${index}-${range.min ?? 0}-${range.max ?? 0}-${
+            range.level ?? 1
+          }`;
+
+    usedIds.add(id);
+
+    return {
+      id,
+      min: range.min ?? 0,
+      max: range.max ?? 10,
+      level: range.level ?? 1,
+    };
+  });
+};
+
 const getNextPoId = (existingPos: ProgramOutcome[]) => {
   const maxPoNumber = existingPos.reduce((maxSoFar, currentPo) => {
     const matchedNumber = Number(currentPo.id.replace(/^PO/i, ""));
@@ -129,10 +150,11 @@ const submitToBackend = async (
   endpoint: string,
   payload: unknown,
   setPageMessage: (message: string) => void,
+  method: "POST" | "PUT" | "PATCH" = "POST",
 ) => {
   try {
     const response = await fetch(`${SERVER_URL}${endpoint}`, {
-      method: "POST",
+      method,
       headers: {
         "Content-Type": "application/json",
       },
@@ -245,9 +267,16 @@ export default function CollegeAdminPage() {
     programmeId: "",
     teacherId: "",
   });
-  const [pageMessage, setPageMessage] = useState("");
+
+  const [attainmentMessage, setAttainmentMessage] = useState("");
+  const [poMessage, setPoMessage] = useState("");
+  const [programmeMessage, setProgrammeMessage] = useState("");
+  const [facultyMessage, setFacultyMessage] = useState("");
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+
   const [activeWorkspace, setActiveWorkspace] =
     useState<WorkspaceMode>("attainment");
+
   const [facultySearch, setFacultySearch] = useState("");
   const [facultyRoleFilter, setFacultyRoleFilter] = useState<
     "all" | "TEACHER" | "HOD"
@@ -255,10 +284,12 @@ export default function CollegeAdminPage() {
   const [facultyAssignmentFilter, setFacultyAssignmentFilter] = useState<
     "all" | "assigned" | "unassigned"
   >("all");
+
   const [programmeSearch, setProgrammeSearch] = useState("");
   const [programmeStatusFilter, setProgrammeStatusFilter] = useState<
     "all" | "assigned" | "unassigned"
   >("all");
+
   const [assignmentSearch, setAssignmentSearch] = useState("");
   const [assignmentStatusFilter, setAssignmentStatusFilter] = useState<
     "all" | "assigned" | "unassigned"
@@ -282,14 +313,14 @@ export default function CollegeAdminPage() {
 
       const data = await res.json();
       if (!res?.ok) {
-        setPageMessage(
+        setAttainmentMessage(
           data.message || "Failed to load initial data. Using defaults.",
         );
         return;
       }
 
       if (!data) {
-        setPageMessage("Invalid initial data format. Using defaults.");
+        setAttainmentMessage("Invalid initial data format. Using defaults.");
         return;
       }
 
@@ -306,7 +337,16 @@ export default function CollegeAdminPage() {
       });
       setMinLevel(configuredBounds.minLevel);
       setMaxLevel(configuredBounds.maxLevel);
-      setAttainmentRanges(data.data.college?.attainmentRanges ?? []);
+      const loadedRanges = (data.data.college?.attainmentRanges ?? []).map(
+        (range: any) => ({
+          id: range.id || crypto.randomUUID(),
+          min: Number(range.min),
+          max: Number(range.max),
+          level: Number(range.level),
+        }),
+      );
+
+      setAttainmentRanges(loadedRanges);
       const fetchedPos = data.data.college?.pos ?? data.pos ?? [];
       setPos(
         fetchedPos
@@ -388,26 +428,24 @@ export default function CollegeAdminPage() {
 
   const handleAddRange = () => {
     const nextRange: AttainmentRange = {
-      id: `range-${Date.now()}`,
+      id: crypto.randomUUID(),
       min: 0,
       max: 10,
       level: minLevel,
     };
 
-    const nextRanges = [...attainmentRanges, nextRange];
-    setAttainmentRanges(nextRanges);
-    setPageMessage("New attainment range row added.");
+    setAttainmentRanges([...attainmentRanges, nextRange]);
+    setAttainmentMessage("New attainment range row added.");
   };
 
   const handleDeleteRange = (rangeId: string) => {
-    const nextRanges = attainmentRanges.filter((range) => range.id !== rangeId);
-    setAttainmentRanges(nextRanges);
-    setPageMessage("Attainment range row deleted.");
+    setAttainmentRanges(
+      attainmentRanges.filter((range) => range.id !== rangeId),
+    );
+    setAttainmentMessage("Attainment range row deleted.");
   };
 
-  const handleAttainmentSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleAttainmentSubmit = async () => {
     const hasInvalidLevel = Object.values(attainmentValues).some(
       (value) =>
         !Number.isInteger(value) ||
@@ -416,7 +454,7 @@ export default function CollegeAdminPage() {
     );
 
     if (hasInvalidLevel) {
-      setPageMessage(
+      setAttainmentMessage(
         `All CO attainment fields must be selected between ${Math.min(
           minLevel,
           maxLevel,
@@ -432,11 +470,13 @@ export default function CollegeAdminPage() {
     );
 
     if (mappingValidation) {
-      setPageMessage(`Fix attainment range mapping: ${mappingValidation}`);
+      setAttainmentMessage(
+        `Fix attainment range mapping: ${mappingValidation}`,
+      );
       return;
     }
 
-    setPageMessage("Saving attainment configuration...");
+    setAttainmentMessage("Saving attainment configuration...");
 
     const payload = {
       attainmentConfig: attainmentValues,
@@ -454,19 +494,19 @@ export default function CollegeAdminPage() {
     const result = await submitToBackend(
       "/college_admin/update-attainment-config",
       payload,
-      setPageMessage,
+      setAttainmentMessage,
     );
 
     if (result.success) {
-      setPageMessage("Attainment configuration saved successfully!");
+      setAttainmentMessage("Attainment configuration saved successfully!");
     }
   };
 
-  const handleAddPO = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddPO = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newPOValue.trim()) {
-      setPageMessage("Enter a PO value before adding it.");
+      setPoMessage("Enter a PO value before adding it.");
       return;
     }
 
@@ -476,19 +516,28 @@ export default function CollegeAdminPage() {
       po: newPOValue.trim(),
     };
 
-    const updatedPOs = [...pos, nextPO];
-    setPos(updatedPOs);
-    setNewPOValue("");
-    setPageMessage(
-      `${nextPO.id} added. Save attainment configuration to submit all POs.`,
+    const result = await submitToBackend(
+      "/college_admin/update-pos",
+      { pos: [...pos, nextPO] },
+      setPoMessage,
+      "PUT",
     );
+
+    if (result.success) {
+      setPos([...pos, nextPO]);
+      setNewPOValue("");
+      setPoMessage(
+        `${nextPO.id} added. Save attainment configuration to submit all POs.`,
+      );
+      return;
+    }
   };
 
   const handleProgrammeCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newProgrammeName.trim()) {
-      setPageMessage("Programme name is required.");
+      setProgrammeMessage("Programme name is required.");
       return;
     }
 
@@ -498,23 +547,22 @@ export default function CollegeAdminPage() {
       teacherId: null,
     };
 
-    setPageMessage("Creating programme...");
+    setProgrammeMessage("Creating programme...");
 
     const result = await submitToBackend(
       "/college_admin/add-program",
       { name: nextProgramme.name },
-      setPageMessage,
+      setProgrammeMessage,
     );
 
     if (result.success) {
-      const updatedProgrammes = [...programmes, nextProgramme];
-      setProgrammes(updatedProgrammes);
+      setProgrammes([...programmes, nextProgramme]);
       setNewProgrammeName("");
       setAssignment((prev) => ({
         ...prev,
         programmeId: prev.programmeId || nextProgramme._id,
       }));
-      setPageMessage("Programme created successfully!");
+      setProgrammeMessage("Programme created successfully!");
     }
   };
 
@@ -522,11 +570,11 @@ export default function CollegeAdminPage() {
     event.preventDefault();
 
     if (!newTeacher.name.trim() || !newTeacher.code.trim()) {
-      setPageMessage("Faculty member name and login code are required.");
+      setFacultyMessage("Faculty member name and login code are required.");
       return;
     }
 
-    setPageMessage("Creating faculty member account...");
+    setFacultyMessage("Creating faculty member account...");
 
     const result = await submitToBackend(
       "/college_admin/add-teacher",
@@ -536,7 +584,7 @@ export default function CollegeAdminPage() {
         password: newTeacher.password.trim() || null,
         role: newTeacher.role,
       },
-      setPageMessage,
+      setFacultyMessage,
     );
 
     if (result.success) {
@@ -554,19 +602,20 @@ export default function CollegeAdminPage() {
         ...prev,
         teacherId: prev.teacherId || nextTeacher._id,
       }));
-      setPageMessage("Faculty member account created successfully!");
+      setFacultyMessage("Faculty member account created successfully!");
     }
     console.log("Teacher creation result:", result);
   };
 
   const handleAssignTeacher = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!assignment.programmeId || !assignment.teacherId) {
-      setPageMessage("Select both a programme and a faculty member.");
+      setAssignmentMessage("Select both a programme and a faculty member.");
       return;
     }
 
-    setPageMessage("Assigning faculty member to programme...");
+    setAssignmentMessage("Assigning faculty member to programme...");
 
     const result = await submitToBackend(
       "/college_admin/assign-teacher",
@@ -574,24 +623,22 @@ export default function CollegeAdminPage() {
         programmeId: assignment.programmeId,
         teacherId: assignment.teacherId,
       },
-      setPageMessage,
+      setAssignmentMessage,
     );
 
     if (result.success) {
-      const updatedProgrammes = programmes.map((programme) =>
-        programme._id === assignment.programmeId
-          ? { ...programme, teacherId: assignment.teacherId }
-          : programme,
+      setProgrammes(
+        programmes.map((programme) =>
+          programme._id === assignment.programmeId
+            ? { ...programme, teacherId: assignment.teacherId }
+            : programme,
+        ),
       );
-
-      setProgrammes(updatedProgrammes);
-      setPageMessage("Faculty member assigned to programme successfully!");
+      setAssignmentMessage(
+        "Faculty member assigned to programme successfully!",
+      );
     }
   };
-
-  const assignedCount = teachers?.filter(
-    (teacher) => teacher.programmes && teacher.programmes.length > 0,
-  ).length;
 
   const getTeacherAssignedProgrammes = (teacherProgrammeIds: string[] = []) =>
     programmes.filter((programme) =>
@@ -609,33 +656,6 @@ export default function CollegeAdminPage() {
     minLevel,
     maxLevel,
   );
-
-  const kpis = [
-    {
-      title: "Program Outcomes",
-      value: pos?.length ?? 0,
-      icon: Target,
-      hint: "Defined outcome statements",
-    },
-    {
-      title: "Programmes",
-      value: programmes?.length ?? 0,
-      icon: BookOpen,
-      hint: "Active programme records",
-    },
-    {
-      title: "Faculty Members",
-      value: teachers?.length ?? 0,
-      icon: Users,
-      hint: "Accounts available for assignment",
-    },
-    {
-      title: "Assigned Programmes",
-      value: assignedCount ?? 0,
-      icon: BadgeCheck,
-      hint: "Programmes with faculty ownership",
-    },
-  ];
 
   const getProgrammeAssignedTeachers = (programme: Programme) =>
     teachers.filter(
@@ -756,99 +776,75 @@ export default function CollegeAdminPage() {
     },
   ];
 
+  const kpis = [
+    {
+      title: "Program Outcomes",
+      value: pos.length,
+      icon: Target,
+    },
+    {
+      title: "Programmes",
+      value: programmes.length,
+      icon: BookOpen,
+    },
+    {
+      title: "Faculty Members",
+      value: teachers.length,
+      icon: Users,
+    },
+    {
+      title: "Assigned Programmes",
+      value: programmeRows.filter((row) => row.isAssigned).length,
+      icon: BadgeCheck,
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_45%),var(--color-primary)] px-4 py-8 sm:px-6 lg:px-10">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          {/* Header */}
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold tracking-wide text-slate-600">
-                <Sparkles className="h-3.5 w-3.5 text-secondary" />
-                OBE Administration Console
-              </div>
-
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-                College Administration Dashboard
+    <main className="min-h-screen bg-[color:var(--color-primary)] px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl space-y-3">
+        <header className="rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
+                OBE College Administration
               </h1>
-
-              <p className="mt-1.5 text-sm text-slate-500 sm:text-[15px]">
-                Manage programmes, faculty accounts, and academic assignments
-                from one unified workspace.
+              <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+              <p className="text-xs text-slate-500 sm:text-sm">
+                {
+                  workspaceTabs.find(
+                    (workspace) => workspace.id === activeWorkspace,
+                  )?.label
+                }
               </p>
             </div>
 
-            {/* Compact Status Panels */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[420px]">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Active Workspace
-                </p>
-                <p className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Settings2 className="h-4 w-4 text-secondary" />
-                  {
-                    workspaceTabs.find(
-                      (workspace) => workspace.id === activeWorkspace,
-                    )?.label
-                  }
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Faculty Coverage
-                </p>
-                <p className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Activity className="h-4 w-4 text-secondary" />
-                  {programmeRows.filter((row) => row.isAssigned).length} of{" "}
-                  {programmes?.length ?? 0} Programmes Assigned
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* KPI Strip */}
-          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon;
-
-              return (
-                <article
-                  key={kpi.title}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {kpis.map((kpi) => {
+                const Icon = kpi.icon;
+                return (
+                  <div
+                    key={kpi.title}
+                    className="flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-slate-500" />
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500">
                         {kpi.title}
                       </p>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">
+                      <p className="text-xs font-semibold text-slate-900 sm:text-sm">
                         {kpi.value}
                       </p>
                     </div>
-
-                    <div className="rounded-lg bg-white p-2 text-secondary shadow-sm">
-                      <Icon className="h-4 w-4" />
-                    </div>
                   </div>
-
-                  <p className="mt-2 text-xs text-slate-500">{kpi.hint}</p>
-                </article>
-              );
-            })}
-          </div>
-
-          {/* Page Message */}
-          {pageMessage && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600">
-              {pageMessage}
+                );
+              })}
             </div>
-          )}
-        </section>
+          </div>
+        </header>
 
-        <section className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <nav className="rounded-lg border border-slate-200 bg-white p-2">
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
               {workspaceTabs.map((workspace) => {
                 const Icon = workspace.icon;
                 const isActive = activeWorkspace === workspace.id;
@@ -858,107 +854,114 @@ export default function CollegeAdminPage() {
                     key={workspace.id}
                     type="button"
                     onClick={() => setActiveWorkspace(workspace.id)}
-                    className={`group relative inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-300 ${
+                    className={`inline-flex items-center justify-start gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
                       isActive
-                        ? "border-secondary bg-secondary text-white shadow-md shadow-secondary/20"
-                        : "border-slate-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-secondary/40 hover:shadow-md"
+                        ? "bg-secondary text-white"
+                        : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <div
-                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-                        isActive
-                          ? "bg-white/15"
-                          : "bg-slate-100 text-slate-500 group-hover:bg-secondary/10 group-hover:text-secondary"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-
-                    <span>{workspace.label}</span>
+                    <Icon className="h-4 w-4" />
+                    {workspace.label}
                   </button>
                 );
               })}
             </div>
-          </div>
+          </nav>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_26px_-20px_rgba(37,99,235,0.45)] sm:p-6">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
             {activeWorkspace === "attainment" && (
-              <div className="space-y-5">
-                <div className="flex items-start gap-2.5">
-                  <Layers className="mt-0.5 h-4 w-4 text-secondary" />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Attainment Configuration
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      Configure CO level values and range mapping for attainment
-                      analytics.
-                    </p>
+              <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                {/* Section Header */}
+                <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10">
+                      <Layers className="h-5 w-5 text-secondary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">
+                        Attainment Configuration
+                      </h2>
+                      <p className="text-sm text-slate-500">
+                        Configure attainment levels, CO target thresholds, and
+                        percentage mapping rules for this programme.
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    onClick={handleAttainmentSubmit}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-secondary px-5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Configuration
+                  </button>
                 </div>
 
-                <form onSubmit={handleAttainmentSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Attainment Level Boundaries
-                      </h3>
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="text-xs font-medium text-slate-600">
-                            Minimum Level
-                          </label>
-                          <select
-                            value={minLevel}
-                            onChange={(event) =>
-                              handleMinMaxChange(
-                                "minLevel",
-                                event.currentTarget.value,
-                              )
-                            }
-                            className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
-                          >
-                            {boundValueOptions(minLevel).map((option) => (
-                              <option
-                                key={`min-bound-${option}`}
-                                value={option}
-                              >
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-slate-600">
-                            Maximum Level
-                          </label>
-                          <select
-                            value={maxLevel}
-                            onChange={(event) =>
-                              handleMinMaxChange(
-                                "maxLevel",
-                                event.currentTarget.value,
-                              )
-                            }
-                            className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
-                          >
-                            {boundValueOptions(maxLevel).map((option) => (
-                              <option
-                                key={`max-bound-${option}`}
-                                value={option}
-                              >
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                {/* Global Config Grid */}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                  {/* Academic Boundaries */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Academic Boundaries
+                    </p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Minimum Level
+                        </label>
+                        <select
+                          value={minLevel}
+                          onChange={(event) =>
+                            handleMinMaxChange(
+                              "minLevel",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                        >
+                          {boundValueOptions(minLevel).map((option) => (
+                            <option key={`min-bound-${option}`} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Maximum Level
+                        </label>
+                        <select
+                          value={maxLevel}
+                          onChange={(event) =>
+                            handleMinMaxChange(
+                              "maxLevel",
+                              event.currentTarget.value,
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                        >
+                          {boundValueOptions(maxLevel).map((option) => (
+                            <option key={`max-bound-${option}`} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Direct CO */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Direct CO Targets
+                    </p>
+
+                    <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-medium text-slate-600">
-                          Direct CO Internal
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Direct Internal
                         </label>
                         <select
                           value={attainmentValues.directCOInternal}
@@ -968,7 +971,7 @@ export default function CollegeAdminPage() {
                               event.currentTarget.value,
                             )
                           }
-                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
                         >
                           {attainmentValueOptions(
                             attainmentValues.directCOInternal,
@@ -982,9 +985,10 @@ export default function CollegeAdminPage() {
                           ))}
                         </select>
                       </div>
+
                       <div>
-                        <label className="text-xs font-medium text-slate-600">
-                          Direct CO External
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Direct External
                         </label>
                         <select
                           value={attainmentValues.directCOExternal}
@@ -994,7 +998,7 @@ export default function CollegeAdminPage() {
                               event.currentTarget.value,
                             )
                           }
-                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
                         >
                           {attainmentValueOptions(
                             attainmentValues.directCOExternal,
@@ -1008,9 +1012,19 @@ export default function CollegeAdminPage() {
                           ))}
                         </select>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Indirect CO */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Indirect CO Targets
+                    </p>
+
+                    <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-medium text-slate-600">
-                          Indirect CO Internal
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Indirect Internal
                         </label>
                         <select
                           value={attainmentValues.indirectCOInternal}
@@ -1020,7 +1034,7 @@ export default function CollegeAdminPage() {
                               event.currentTarget.value,
                             )
                           }
-                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
                         >
                           {attainmentValueOptions(
                             attainmentValues.indirectCOInternal,
@@ -1034,9 +1048,10 @@ export default function CollegeAdminPage() {
                           ))}
                         </select>
                       </div>
+
                       <div>
-                        <label className="text-xs font-medium text-slate-600">
-                          Indirect CO External
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
+                          Indirect External
                         </label>
                         <select
                           value={attainmentValues.indirectCOExternal}
@@ -1046,7 +1061,7 @@ export default function CollegeAdminPage() {
                               event.currentTarget.value,
                             )
                           }
-                          className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-secondary"
+                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
                         >
                           {attainmentValueOptions(
                             attainmentValues.indirectCOExternal,
@@ -1062,189 +1077,201 @@ export default function CollegeAdminPage() {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="rounded-lg border border-slate-200">
-                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                {/* Range Mapping */}
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
                       <h3 className="text-sm font-semibold text-slate-800">
                         Attainment Range Mapping
                       </h3>
-                      <button
-                        type="button"
-                        onClick={handleAddRange}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-secondary/30 bg-white px-3 text-xs font-semibold text-secondary"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add Range
-                      </button>
+                      <p className="text-xs text-slate-500">
+                        Define percentage ranges and their corresponding
+                        attainment levels.
+                      </p>
                     </div>
 
-                    <div className="max-h-72 overflow-auto">
-                      <table className="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead className="bg-white">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Min %
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Max %
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Level
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">
-                          {attainmentRanges.map((range) => (
-                            <tr key={range.id}>
-                              <td className="px-3 py-2">
-                                <select
-                                  value={range.min}
-                                  onChange={(event) =>
-                                    handleRangeSelectChange(
-                                      range.id,
-                                      "min",
-                                      event.currentTarget.value,
-                                    )
-                                  }
-                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
-                                >
-                                  {percentageOptions.map((option) => (
-                                    <option
-                                      key={`range-${range.id}-min-${option}`}
-                                      value={option}
-                                    >
-                                      {option}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2">
-                                <select
-                                  value={range.max}
-                                  onChange={(event) =>
-                                    handleRangeSelectChange(
-                                      range.id,
-                                      "max",
-                                      event.currentTarget.value,
-                                    )
-                                  }
-                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
-                                >
-                                  {percentageOptions.map((option) => (
-                                    <option
-                                      key={`range-${range.id}-max-${option}`}
-                                      value={option}
-                                    >
-                                      {option}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2">
-                                <select
-                                  value={range.level}
-                                  onChange={(event) =>
-                                    handleRangeSelectChange(
-                                      range.id,
-                                      "level",
-                                      event.currentTarget.value,
-                                    )
-                                  }
-                                  className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-sm"
-                                >
-                                  {mergeOptionsWithCurrentValue(
-                                    attainmentOptions,
-                                    range.level,
-                                  ).map((option) => (
-                                    <option
-                                      key={`range-${range.id}-level-${option}`}
-                                      value={option}
-                                    >
-                                      {option}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteRange(range.id)}
-                                  className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-semibold text-rose-700"
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {rangeValidationMessage ? (
-                    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                      Range mapping issue: {rangeValidationMessage}
-                    </p>
-                  ) : (
-                    <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
-                      Range mapping is valid and covers 0% to 100% without
-                      overlap.
-                    </p>
-                  )}
-
-                  <div className="flex justify-end">
                     <button
-                      type="submit"
-                      className="inline-flex h-9 items-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
+                      type="button"
+                      onClick={handleAddRange}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                     >
-                      <Save className="h-4 w-4" />
-                      Save Attainment Configuration
+                      <Plus className="h-4 w-4" />
+                      Add Range
                     </button>
                   </div>
-                </form>
+
+                  <div className="max-h-80 overflow-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-white">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Min %
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Max %
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Level
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Remove
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {attainmentRanges.map((range) => (
+                          <tr key={range.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3">
+                              <select
+                                value={range.min}
+                                onChange={(event) =>
+                                  handleRangeSelectChange(
+                                    range.id,
+                                    "min",
+                                    event.currentTarget.value,
+                                  )
+                                }
+                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                              >
+                                {percentageOptions.map((option) => (
+                                  <option
+                                    key={`range-${range.id}-min-${option}`}
+                                    value={option}
+                                  >
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <select
+                                value={range.max}
+                                onChange={(event) =>
+                                  handleRangeSelectChange(
+                                    range.id,
+                                    "max",
+                                    event.currentTarget.value,
+                                  )
+                                }
+                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                              >
+                                {percentageOptions.map((option) => (
+                                  <option
+                                    key={`range-${range.id}-max-${option}`}
+                                    value={option}
+                                  >
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <select
+                                value={range.level}
+                                onChange={(event) =>
+                                  handleRangeSelectChange(
+                                    range.id,
+                                    "level",
+                                    event.currentTarget.value,
+                                  )
+                                }
+                                className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+                              >
+                                {mergeOptionsWithCurrentValue(
+                                  attainmentOptions,
+                                  range.level,
+                                ).map((option) => (
+                                  <option
+                                    key={`range-${range.id}-level-${option}`}
+                                    value={option}
+                                  >
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRange(range.id)}
+                                className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="border-t border-slate-200 px-4 py-3">
+                    {rangeValidationMessage ? (
+                      <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                        Range mapping issue: {rangeValidationMessage}
+                      </p>
+                    ) : (
+                      <p className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                        Range mapping is valid and covers 0% to 100% without
+                        overlap.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {attainmentMessage && (
+                  <p className="text-sm font-medium text-slate-600">
+                    {attainmentMessage}
+                  </p>
+                )}
               </div>
             )}
 
             {activeWorkspace === "programOutcomes" && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <Target className="mt-0.5 h-4 w-4 text-secondary" />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Program Outcomes
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      Maintain concise, measurable outcome statements for
-                      curriculum governance.
-                    </p>
-                  </div>
-                </div>
+                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
+                  <Target className="h-4 w-4 text-secondary" />
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Program Outcomes
+                  </h2>
+                </header>
 
                 <form
                   onSubmit={handleAddPO}
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                  className="rounded-md border border-slate-200 bg-slate-50/60 p-2"
                 >
-                  <input
-                    type="text"
-                    value={newPOValue}
-                    onChange={(event) => setNewPOValue(event.target.value)}
-                    placeholder="Enter program outcome statement"
-                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-secondary"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
-                  >
-                    <GitBranchPlus className="h-4 w-4" />
-                    Add Program Outcome
-                  </button>
+                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    Quick Create
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <input
+                      type="text"
+                      value={newPOValue}
+                      onChange={(event) => setNewPOValue(event.target.value)}
+                      placeholder="Enter program outcome statement"
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-sm font-semibold text-white"
+                    >
+                      <GitBranchPlus className="h-4 w-4" />
+                      Add Program Outcome
+                    </button>
+                  </div>
                 </form>
+                {poMessage && (
+                  <p className="text-sm text-slate-600">{poMessage}</p>
+                )}
 
-                <div className="overflow-hidden rounded-lg border border-slate-200">
-                  <div className="max-h-[28rem] overflow-auto">
+                <div className="overflow-hidden rounded-md border border-slate-200">
+                  <div className="max-h-[32rem] overflow-auto">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -1269,7 +1296,6 @@ export default function CollegeAdminPage() {
                         ))}
                       </tbody>
                     </table>
-
                     {pos.length === 0 && (
                       <p className="px-3 py-5 text-sm text-slate-500">
                         No program outcomes added yet.
@@ -1282,97 +1308,81 @@ export default function CollegeAdminPage() {
 
             {activeWorkspace === "programmeManagement" && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <GraduationCap className="mt-0.5 h-4 w-4 text-secondary" />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Programme Management
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      Create programmes and monitor assignment readiness with
-                      focused operational controls.
+                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
+                  <GraduationCap className="h-4 w-4 text-secondary" />
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Programme Management
+                  </h2>
+                </header>
+
+                <form
+                  onSubmit={handleProgrammeCreate}
+                  className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+                >
+                  <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
+                    <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                      Explore Records
                     </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <form onSubmit={handleProgrammeCreate} className="space-y-4">
-                    {/* Search & Filter Controls */}
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                      {/* Search Programmes */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Search Programmes
-                        </label>
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="text"
-                            value={programmeSearch}
-                            onChange={(e) => setProgrammeSearch(e.target.value)}
-                            placeholder="Search by programme name..."
-                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Programme Filter */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Assignment Filter
-                        </label>
-                        <div className="relative">
-                          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                          <select
-                            value={programmeStatusFilter}
-                            onChange={(e) =>
-                              setProgrammeStatusFilter(
-                                e.target.value as
-                                  | "all"
-                                  | "assigned"
-                                  | "unassigned",
-                              )
-                            }
-                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                          >
-                            <option value="all">All Programmes</option>
-                            <option value="assigned">Assigned Only</option>
-                            <option value="unassigned">Unassigned Only</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Add New Programme */}
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Create New Programme
-                        </label>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_190px]">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                         <input
                           type="text"
-                          value={newProgrammeName}
-                          onChange={(e) => setNewProgrammeName(e.target.value)}
-                          placeholder="Enter programme title..."
-                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
+                          value={programmeSearch}
+                          onChange={(e) => setProgrammeSearch(e.target.value)}
+                          placeholder="Search programme name"
+                          className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
                         />
                       </div>
-
-                      <div className="flex items-end">
-                        <button
-                          type="submit"
-                          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                      <div className="relative">
+                        <Filter className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <select
+                          value={programmeStatusFilter}
+                          onChange={(e) =>
+                            setProgrammeStatusFilter(
+                              e.target.value as
+                                | "all"
+                                | "assigned"
+                                | "unassigned",
+                            )
+                          }
+                          className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
                         >
-                          <Plus className="h-4 w-4" />
-                          Add Programme
-                        </button>
+                          <option value="all">All Statuses</option>
+                          <option value="assigned">Assigned</option>
+                          <option value="unassigned">Unassigned</option>
+                        </select>
                       </div>
                     </div>
-                  </form>
-                </div>
+                  </div>
+                  <div className="rounded-md border border-slate-200 bg-white p-2">
+                    <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                      Quick Create
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[220px_auto]">
+                      <input
+                        type="text"
+                        value={newProgrammeName}
+                        onChange={(e) => setNewProgrammeName(e.target.value)}
+                        placeholder="New programme name"
+                        className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </form>
+                {programmeMessage && (
+                  <p className="text-sm text-slate-600">{programmeMessage}</p>
+                )}
 
-                <div className="overflow-hidden rounded-lg border border-slate-200">
-                  <div className="max-h-[30rem] overflow-auto">
+                <div className="overflow-hidden rounded-md border border-slate-200">
+                  <div className="max-h-[32rem] overflow-auto">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -1407,7 +1417,6 @@ export default function CollegeAdminPage() {
                         ))}
                       </tbody>
                     </table>
-
                     {filteredProgrammeRows.length === 0 && (
                       <p className="px-3 py-5 text-sm text-slate-500">
                         No programme records found for current filters.
@@ -1420,155 +1429,129 @@ export default function CollegeAdminPage() {
 
             {activeWorkspace === "facultyManagement" && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <UserRound className="mt-0.5 h-4 w-4 text-secondary" />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Faculty Management
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      Manage faculty accounts with search and role/assignment
-                      filtering for large institutional datasets.
-                    </p>
+                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
+                  <UserRound className="h-4 w-4 text-secondary" />
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Faculty Management
+                  </h2>
+                </header>
+
+                <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
+                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    Filter Records
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={facultySearch}
+                        onChange={(e) => setFacultySearch(e.target.value)}
+                        placeholder="Search faculty name"
+                        className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                      />
+                    </div>
+                    <select
+                      value={facultyRoleFilter}
+                      onChange={(e) =>
+                        setFacultyRoleFilter(
+                          e.target.value as "all" | "TEACHER" | "HOD",
+                        )
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="TEACHER">Faculty Members</option>
+                      <option value="HOD">Head Of Department</option>
+                    </select>
+                    <select
+                      value={facultyAssignmentFilter}
+                      onChange={(e) =>
+                        setFacultyAssignmentFilter(
+                          e.target.value as "all" | "assigned" | "unassigned",
+                        )
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="all">All Assignments</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="unassigned">Unassigned</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <form onSubmit={handleTeacherCreate} className="space-y-4">
-                    {/* Faculty Search & Filters */}
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Search Faculty
-                        </label>
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="text"
-                            value={facultySearch}
-                            onChange={(e) => setFacultySearch(e.target.value)}
-                            placeholder="Search by faculty name..."
-                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                          />
-                        </div>
-                      </div>
+                <form
+                  onSubmit={handleTeacherCreate}
+                  className="rounded-md border border-slate-200 bg-white p-2"
+                >
+                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    Quick Create
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_160px_160px_170px_auto]">
+                    <input
+                      type="text"
+                      value={newTeacher.name}
+                      onChange={(e) =>
+                        setNewTeacher((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="Faculty full name"
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={newTeacher.code}
+                      onChange={(e) =>
+                        setNewTeacher((prev) => ({
+                          ...prev,
+                          code: e.target.value,
+                        }))
+                      }
+                      placeholder="Login code"
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    />
+                    <input
+                      type="password"
+                      value={newTeacher.password}
+                      onChange={(e) =>
+                        setNewTeacher((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                      placeholder="Password (optional)"
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    />
+                    <select
+                      value={newTeacher.role}
+                      onChange={(e) =>
+                        setNewTeacher((prev) => ({
+                          ...prev,
+                          role: e.target.value as "TEACHER" | "HOD",
+                        }))
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="TEACHER">Faculty Member</option>
+                      <option value="HOD">Head Of Department</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
+                    >
+                      <UserSquare2 className="h-4 w-4" />
+                      Create
+                    </button>
+                  </div>
+                </form>
+                {facultyMessage && (
+                  <p className="text-sm text-slate-600">{facultyMessage}</p>
+                )}
 
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Faculty Role Filter
-                        </label>
-                        <select
-                          value={facultyRoleFilter}
-                          onChange={(e) =>
-                            setFacultyRoleFilter(
-                              e.target.value as "all" | "TEACHER" | "HOD",
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="all">All Roles</option>
-                          <option value="TEACHER">Faculty Members</option>
-                          <option value="HOD">Heads of Department</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Programme Assignment
-                        </label>
-                        <select
-                          value={facultyAssignmentFilter}
-                          onChange={(e) =>
-                            setFacultyAssignmentFilter(
-                              e.target.value as
-                                | "all"
-                                | "assigned"
-                                | "unassigned",
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="all">All Faculty</option>
-                          <option value="assigned">Assigned Only</option>
-                          <option value="unassigned">Unassigned Only</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="border-t border-slate-200 pt-4">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Create Faculty Account
-                      </p>
-
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <input
-                          type="text"
-                          value={newTeacher.name}
-                          onChange={(e) =>
-                            setNewTeacher((prev) => ({
-                              ...prev,
-                              name: e.target.value,
-                            }))
-                          }
-                          placeholder="Faculty full name"
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        />
-
-                        <input
-                          type="text"
-                          value={newTeacher.code}
-                          onChange={(e) =>
-                            setNewTeacher((prev) => ({
-                              ...prev,
-                              code: e.target.value,
-                            }))
-                          }
-                          placeholder="Unique login code"
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        />
-
-                        <input
-                          type="password"
-                          value={newTeacher.password}
-                          onChange={(e) =>
-                            setNewTeacher((prev) => ({
-                              ...prev,
-                              password: e.target.value,
-                            }))
-                          }
-                          placeholder="Password (optional)"
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        />
-
-                        <select
-                          value={newTeacher.role}
-                          onChange={(e) =>
-                            setNewTeacher((prev) => ({
-                              ...prev,
-                              role: e.target.value as "TEACHER" | "HOD",
-                            }))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="TEACHER">Faculty Member</option>
-                          <option value="HOD">Head of Department</option>
-                        </select>
-
-                        <button
-                          type="submit"
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
-                        >
-                          <UserSquare2 className="h-4 w-4" />
-                          Create Account
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="overflow-hidden rounded-lg border border-slate-200">
-                  <div className="max-h-[30rem] overflow-auto">
+                <div className="overflow-hidden rounded-md border border-slate-200">
+                  <div className="max-h-[32rem] overflow-auto">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -1613,7 +1596,6 @@ export default function CollegeAdminPage() {
                         ))}
                       </tbody>
                     </table>
-
                     {filteredFacultyRows.length === 0 && (
                       <p className="px-3 py-5 text-sm text-slate-500">
                         No faculty records found for current filters.
@@ -1626,121 +1608,101 @@ export default function CollegeAdminPage() {
 
             {activeWorkspace === "facultyAssignment" && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <Briefcase className="mt-0.5 h-4 w-4 text-secondary" />
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Faculty Assignment
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      Execute assignment actions and track current ownership in
-                      a compact explorer.
-                    </p>
+                <header className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
+                  <Briefcase className="h-4 w-4 text-secondary" />
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Faculty Assignment
+                  </h2>
+                </header>
+
+                <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2">
+                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    Explore Records
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={assignmentSearch}
+                        onChange={(e) => setAssignmentSearch(e.target.value)}
+                        placeholder="Search programme mapping"
+                        className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm"
+                      />
+                    </div>
+                    <select
+                      value={assignmentStatusFilter}
+                      onChange={(e) =>
+                        setAssignmentStatusFilter(
+                          e.target.value as "all" | "assigned" | "unassigned",
+                        )
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="unassigned">Unassigned</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <form onSubmit={handleAssignTeacher} className="space-y-4">
-                    {/* Assignment Search Controls */}
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Search Programme Mapping
-                        </label>
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="text"
-                            value={assignmentSearch}
-                            onChange={(e) =>
-                              setAssignmentSearch(e.target.value)
-                            }
-                            placeholder="Search by programme name..."
-                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                          />
-                        </div>
-                      </div>
+                <form
+                  onSubmit={handleAssignTeacher}
+                  className="rounded-md border border-slate-200 bg-white p-2"
+                >
+                  <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    Assign Action
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <select
+                      value={assignment.programmeId}
+                      onChange={(e) =>
+                        setAssignment((prev) => ({
+                          ...prev,
+                          programmeId: e.target.value,
+                        }))
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="">Choose Programme</option>
+                      {programmes.map((programme) => (
+                        <option key={programme._id} value={programme._id}>
+                          {programme.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={assignment.teacherId}
+                      onChange={(e) =>
+                        setAssignment((prev) => ({
+                          ...prev,
+                          teacherId: e.target.value,
+                        }))
+                      }
+                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="">Choose Faculty Member</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher._id} value={teacher._id}>
+                          {teacher.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-secondary px-3 text-sm font-semibold text-white"
+                    >
+                      <ListChecks className="h-4 w-4" />
+                      Assign
+                    </button>
+                  </div>
+                </form>
+                {assignmentMessage && (
+                  <p className="text-sm text-slate-600">{assignmentMessage}</p>
+                )}
 
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Assignment Status
-                        </label>
-                        <select
-                          value={assignmentStatusFilter}
-                          onChange={(e) =>
-                            setAssignmentStatusFilter(
-                              e.target.value as
-                                | "all"
-                                | "assigned"
-                                | "unassigned",
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="all">All Programmes</option>
-                          <option value="assigned">Assigned Only</option>
-                          <option value="unassigned">Unassigned Only</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="border-t border-slate-200 pt-4">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Assign Faculty To Programme
-                      </p>
-
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
-                        <select
-                          value={assignment.programmeId}
-                          onChange={(e) =>
-                            setAssignment((prev) => ({
-                              ...prev,
-                              programmeId: e.target.value,
-                            }))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="">Choose Programme</option>
-                          {programmes.map((programme) => (
-                            <option key={programme._id} value={programme._id}>
-                              {programme.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={assignment.teacherId}
-                          onChange={(e) =>
-                            setAssignment((prev) => ({
-                              ...prev,
-                              teacherId: e.target.value,
-                            }))
-                          }
-                          className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-secondary focus:bg-white"
-                        >
-                          <option value="">Choose Faculty Member</option>
-                          {teachers.map((teacher) => (
-                            <option key={teacher._id} value={teacher._id}>
-                              {teacher.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <button
-                          type="submit"
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-secondary px-4 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
-                        >
-                          <ListChecks className="h-4 w-4" />
-                          Assign Faculty
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="overflow-hidden rounded-lg border border-slate-200">
-                  <div className="max-h-[30rem] overflow-auto">
+                <div className="overflow-hidden rounded-md border border-slate-200">
+                  <div className="max-h-[32rem] overflow-auto">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -1775,7 +1737,6 @@ export default function CollegeAdminPage() {
                         ))}
                       </tbody>
                     </table>
-
                     {filteredAssignmentRows.length === 0 && (
                       <p className="px-3 py-5 text-sm text-slate-500">
                         No assignment records found for current filters.
@@ -1786,7 +1747,7 @@ export default function CollegeAdminPage() {
               </div>
             )}
           </section>
-        </section>
+        </div>
       </div>
     </main>
   );
