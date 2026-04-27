@@ -819,15 +819,44 @@ export default function CollegeAdminPage() {
   return (
     <main className="min-h-screen bg-[#eef1f4] text-slate-950">
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] grid-cols-1 lg:grid-cols-[228px_minmax(0,1fr)]">
-        <aside className="border-b border-slate-200/80 bg-[#f8fafb] px-4 py-4 lg:border-b-0 lg:border-r lg:px-3 lg:py-6">
-          <div className="mb-5 px-2">
+        <aside className="border-b border-slate-200 bg-white px-4 py-5 lg:border-b-0 lg:border-r lg:px-3 lg:py-6">
+          {/* HEADER */}
+          <div className="mb-5 px-1">
             <p className={captionClass}>Workspace</p>
             <h1 className="mt-1 text-lg font-semibold text-[#101827]">
               {collegeInfo?.name ?? "College"} Admin
             </h1>
           </div>
 
-          <nav className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
+          {/* KPI SECTION */}
+          <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4 lg:hidden">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon;
+              return (
+                <div
+                  key={kpi.title}
+                  className="rounded-xl border border-slate-200 bg-[#f8fafc] px-3 py-3"
+                >
+                  <div className="flex items-center gap-2 text-[#64748b]">
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <p className="truncate text-[0.62rem] font-bold uppercase tracking-wide">
+                      {kpi.title}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xl font-semibold text-[#0f172a]">
+                    {kpi.value}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-5 mb-2 px-1">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-400">
+              Admin Modules
+            </p>
+          </div>
+          {/* NAVIGATION */}
+          <nav className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
             {workspaceTabs.map((workspace) => {
               const Icon = workspace.icon;
               const isActive = activeWorkspace === workspace.id;
@@ -837,14 +866,14 @@ export default function CollegeAdminPage() {
                   key={workspace.id}
                   type="button"
                   onClick={() => setActiveWorkspace(workspace.id)}
-                  className={`group relative flex h-10 items-center gap-3 rounded-md px-2.5 text-left text-sm transition ${
+                  className={`group relative flex h-12 w-full items-center gap-3 rounded-xl border px-3 text-left text-sm transition-all duration-200 ${
                     isActive
-                      ? "bg-[#e7eef5] font-semibold text-[#14324a] before:absolute before:left-0 before:top-2 before:h-6 before:w-0.5 before:rounded-full before:bg-[#2f5f86]"
-                      : "font-medium text-slate-600 hover:bg-white hover:text-[#14324a]"
+                      ? "border-[#c8d9e8] bg-[#eaf2f8] font-semibold text-[#14324a] shadow-sm before:absolute before:left-0 before:top-2 before:h-8 before:w-1 before:rounded-r-full before:bg-[#2f5f86]"
+                      : "border-slate-200 bg-white font-medium text-slate-600 hover:border-slate-300 hover:bg-[#f8fafc] hover:text-[#14324a]"
                   }`}
                 >
                   <Icon
-                    className={`h-4 w-4 ${
+                    className={`h-4 w-4 shrink-0 transition-colors ${
                       isActive
                         ? "text-[#2f5f86]"
                         : "text-slate-400 group-hover:text-[#2f5f86]"
@@ -871,7 +900,7 @@ export default function CollegeAdminPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-x-7 gap-y-4 border-t border-slate-300/70 pt-4 sm:grid-cols-4 xl:border-t-0 xl:pt-0">
+              <div className="hidden lg:grid gap-x-7 gap-y-4 border-t border-slate-300/70 pt-4 grid-cols-4 border-t-0 pt-0">
                 {kpis.map((kpi) => {
                   const Icon = kpi.icon;
                   return (

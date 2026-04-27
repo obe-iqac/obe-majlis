@@ -1,8 +1,9 @@
 "use client";
 
 import { SERVER_URL } from "@/constants";
+import { KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 
 type Step = "code" | "setPassword" | "login";
 
@@ -27,11 +28,6 @@ export default function Home() {
   const [success, setSuccess] = useState("");
 
   const router = useRouter();
-  const stepLabel = useMemo(() => {
-    if (step === "setPassword") return "Set Password";
-    if (step === "login") return "Enter Password";
-    return "Enter Code";
-  }, [step]);
 
   const resetMessages = () => {
     setError("");
@@ -171,58 +167,99 @@ export default function Home() {
     }
   };
 
+  const captionClass = "text-[0.68rem] font-bold uppercase text-[#587089]";
+  const fieldClass =
+    "h-11 w-full rounded-md border-0 bg-[#f4f6f8] px-3 text-sm font-medium text-slate-900 outline-none ring-1 ring-inset ring-slate-300/70 transition placeholder:font-normal placeholder:text-slate-400 hover:bg-white focus:bg-white focus:ring-2 focus:ring-[#2f5f86]/35";
+  const primaryButtonClass =
+    "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#17324a] px-4 text-sm font-semibold text-white transition hover:bg-[#10263a] focus:outline-none focus:ring-2 focus:ring-[#17324a]/20 disabled:cursor-not-allowed disabled:opacity-65";
+  const steps: { id: Step; label: string }[] = [
+    { id: "code", label: "Code" },
+    { id: "setPassword", label: "Set Password" },
+    { id: "login", label: "Login" },
+  ];
+  const activeStepIndex = steps.findIndex((item) => item.id === step);
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[color:var(--color-primary)] px-4 py-10 text-slate-900 sm:px-6">
-      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <header className="mb-6 space-y-1">
-          <h1 className="text-2xl font-semibold">Academic Management System</h1>
-          <p className="text-sm text-slate-600">Enter your code to continue</p>
+    <main className="flex min-h-screen items-center justify-center bg-[#eef1f4] px-4 py-8 text-slate-950 sm:px-6">
+      <section className="w-full max-w-2xl bg-[#fbfbfa] px-5 py-6 ring-1 ring-slate-200/80 sm:px-8 sm:py-7">
+        <header className="text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-md bg-[#e7eef5] text-[#2f5f86]">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold text-[#101827] sm:text-3xl">
+            Academic Management System
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
+            Secure access for institutional academic administration.
+          </p>
         </header>
+
+        <div className="mt-6 border-y border-slate-300/70 py-4">
+          <div className="flex items-center gap-2">
+            {steps.map((item, index) => {
+              const isActive = item.id === step;
+              const isComplete = index < activeStepIndex;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`flex min-w-0 flex-1 items-center justify-center gap-2 border-t pt-2 ${
+                    isActive
+                      ? "border-[#2f5f86] text-[#14324a]"
+                      : isComplete
+                        ? "border-[#2f7d5f] text-[#1f684c]"
+                        : "border-slate-300 text-slate-500"
+                  }`}
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[0.68rem] font-bold ring-1 ring-inset ring-current">
+                    {index + 1}
+                  </span>
+                  <span className="truncate text-xs font-bold uppercase">
+                    {item.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div
           key={step}
-          className="animate-step transition-all duration-200 ease-out"
+          className="animate-step pt-5 transition-all duration-200 ease-out"
         >
-          <p className="mb-4 text-sm font-medium text-slate-700">{stepLabel}</p>
-
           {step === "code" && (
-            <form className="space-y-4" onSubmit={handleVerifyCode}>
+            <form className="space-y-5" onSubmit={handleVerifyCode}>
               <div className="space-y-2">
-                <label
-                  htmlFor="code"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Enter Code
+                <label htmlFor="code" className={captionClass}>
+                  Institution Access Code
                 </label>
                 <input
                   id="code"
                   type="text"
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
-                  placeholder="Enter Code"
+                  placeholder="Enter issued access code"
                   autoComplete="off"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  className={fieldClass}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="h-11 w-full rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className={primaryButtonClass}
               >
-                {loading ? "Checking..." : "Continue"}
+                <KeyRound className="h-4 w-4" />
+                {loading ? "Verifying..." : "Verify Code"}
               </button>
             </form>
           )}
 
           {step === "setPassword" && (
-            <form className="space-y-4" onSubmit={handleSetPassword}>
+            <form className="space-y-5" onSubmit={handleSetPassword}>
               <div className="space-y-2">
-                <label
-                  htmlFor="new-password"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Password
+                <label htmlFor="new-password" className={captionClass}>
+                  Create Password
                 </label>
                 <input
                   id="new-password"
@@ -230,15 +267,12 @@ export default function Home() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Create password"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  className={fieldClass}
                 />
               </div>
 
               <div className="space-y-2">
-                <label
-                  htmlFor="confirm-password"
-                  className="text-sm font-medium text-slate-700"
-                >
+                <label htmlFor="confirm-password" className={captionClass}>
                   Confirm Password
                 </label>
                 <input
@@ -247,28 +281,26 @@ export default function Home() {
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Confirm password"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  className={fieldClass}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="h-11 w-full rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className={primaryButtonClass}
               >
+                <LockKeyhole className="h-4 w-4" />
                 {loading ? "Saving..." : "Set Password"}
               </button>
             </form>
           )}
 
           {step === "login" && (
-            <form className="space-y-4" onSubmit={handleLogin}>
+            <form className="space-y-5" onSubmit={handleLogin}>
               <div className="space-y-2">
-                <label
-                  htmlFor="login-password"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Password
+                <label htmlFor="login-password" className={captionClass}>
+                  Account Password
                 </label>
                 <input
                   id="login-password"
@@ -276,16 +308,17 @@ export default function Home() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter password"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-secondary"
+                  className={fieldClass}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="h-11 w-full rounded-md bg-secondary px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className={primaryButtonClass}
               >
-                {loading ? "Logging in..." : "Login"}
+                <ShieldCheck className="h-4 w-4" />
+                {loading ? "Authenticating..." : "Enter Platform"}
               </button>
             </form>
           )}
@@ -293,16 +326,17 @@ export default function Home() {
 
         {(error || success) && (
           <p
-            className={`mt-4 rounded-md border px-3 py-2 text-sm ${
+            className={`mt-5 border-l-2 px-3 py-2 text-sm font-medium ${
               error
-                ? "border-secondary/45 bg-[color:var(--color-primary)] text-slate-800"
-                : "border-tertiary/50 bg-[color:var(--color-primary)] text-slate-800"
+                ? "border-[#b64040] bg-[#fff7f7] text-[#8a1f1f]"
+                : "border-[#2f7d5f] bg-[#f3faf7] text-[#1f684c]"
             }`}
             role="status"
           >
             {error || success}
           </p>
         )}
+
 
         <style jsx>{`
           .animate-step {
