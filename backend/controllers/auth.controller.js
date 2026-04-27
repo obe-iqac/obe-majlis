@@ -91,14 +91,18 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     const token = generateToken(user);
+    const isProduction = process.env.NODE_ENV === "production";
+
     return res
+      .status(200)
       .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: isProduction,
+        sameSite: isProduction ? "lax" : "lax",
+        domain: isProduction ? ".minhajap.xyz" : undefined,
+        path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .status(200)
       .json({
         message: "Login successful",
         role: user.role, // optional (for frontend routing)
