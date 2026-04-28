@@ -52,6 +52,7 @@ type Teacher = {
   code: string;
   role?: "TEACHER" | "HOD";
   programmes?: string[];
+  courses?: string[]; // Added courses property
 };
 
 type CollegeInfo = {
@@ -74,7 +75,8 @@ type WorkspaceMode =
   | "programOutcomes"
   | "programmeManagement"
   | "facultyManagement"
-  | "facultyAssignment"
+  | "programmeSuperv"
+  | "courseAllocation"
   | "courseManagement";
 
 const ATTTAINMENT_BOUND_MIN = 1;
@@ -322,6 +324,17 @@ export default function CollegeAdminPage() {
   const [courseSearch, setCourseSearch] = useState("");
   const [courseProgrammeFilter, setCourseProgrammeFilter] = useState("all");
   const [courseSemesterFilter, setCourseSemesterFilter] = useState("all");
+
+  const [courseAssignment, setCourseAssignment] = useState({
+    courseId: "",
+    teacherId: "",
+  });
+  const [courseAllocationMessage, setCourseAllocationMessage] = useState("");
+  const [courseAllocationSearch, setCourseAllocationSearch] = useState("");
+  const [courseAllocationProgrammeFilter, setCourseAllocationProgrammeFilter] =
+    useState("all");
+  const [courseAllocationSemesterFilter, setCourseAllocationSemesterFilter] =
+    useState("all");
 
   const [collegeInfo, setCollegeInfo] = useState<CollegeInfo>();
   const attainmentOptions = generateAttainmentOptions(minLevel, maxLevel);
@@ -641,7 +654,7 @@ export default function CollegeAdminPage() {
     setAssignmentMessage("Assigning faculty member to programme...");
 
     const result = await submitToBackend(
-      "/college_admin/assign-teacher",
+      "/college_admin/assign-teacher-program",
       {
         programmeId: assignment.programmeId,
         teacherId: assignment.teacherId,
@@ -650,6 +663,20 @@ export default function CollegeAdminPage() {
     );
 
     if (result.success) {
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((teacher) => {
+          if (teacher._id !== assignment.teacherId) {
+            return teacher;
+          }
+
+          return {
+            ...teacher,
+            programmes: Array.from(
+              new Set([...(teacher.programmes ?? []), assignment.programmeId]),
+            ),
+          };
+        }),
+      );
       setAssignmentMessage(
         "Faculty member assigned to programme successfully!",
       );
@@ -692,6 +719,46 @@ export default function CollegeAdminPage() {
       setCourses([...courses, nextCourse]);
       setNewCourse({ name: "", programmeId: "", semester: 1 });
       setCourseMessage("Course created successfully!");
+    }
+  };
+
+  const handleCourseAssignment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!courseAssignment.courseId || !courseAssignment.teacherId) {
+      setCourseAllocationMessage("Select both a course and a faculty member.");
+      return;
+    }
+
+    setCourseAllocationMessage("Assigning faculty member to course...");
+
+    const result = await submitToBackend(
+      "/college_admin/assign-teacher-course",
+      {
+        courseId: courseAssignment.courseId,
+        teacherId: courseAssignment.teacherId,
+      },
+      setCourseAllocationMessage,
+    );
+
+    if (result.success) {
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((teacher) => {
+          if (teacher._id !== courseAssignment.teacherId) {
+            return teacher;
+          }
+
+          return {
+            ...teacher,
+            courses: Array.from(
+              new Set([...(teacher.courses ?? []), courseAssignment.courseId]),
+            ),
+          };
+        }),
+      );
+      setCourseAllocationMessage(
+        "Faculty member assigned to course successfully!",
+      );
     }
   };
 
@@ -811,6 +878,41 @@ export default function CollegeAdminPage() {
     new Set(courses.map((course) => course.semester)),
   ).sort((a, b) => a - b);
 
+  const getCourseAssignedTeachers = (course: Course) =>
+    teachers.filter(
+      (teacher) =>
+        Array.isArray(teacher.courses) &&
+        teacher.courses?.some(
+          (courseId) => typeof course === "object" && courseId === course._id,
+        ),
+    );
+
+  const courseRows = courses.map((course) => {
+    const assignedTeachers = getCourseAssignedTeachers(course);
+    return {
+      course,
+      assignedTeachers,
+      isAssigned: assignedTeachers.length > 0,
+    };
+  });
+
+  const filteredCourseAllocationRows = courseRows.filter((row) => {
+    const searchMatch = row.course.name
+      .toLowerCase()
+      .includes(courseAllocationSearch.trim().toLowerCase());
+
+    const programmesMatch =
+      courseAllocationProgrammeFilter === "all" ||
+      (typeof row.course.programmeId === "object" &&
+        row.course.programmeId._id === courseAllocationProgrammeFilter);
+
+    const semesterMatch =
+      courseAllocationSemesterFilter === "all" ||
+      row.course.semester === Number(courseAllocationSemesterFilter);
+
+    return searchMatch && programmesMatch && semesterMatch;
+  });
+
   const workspaceTabs: {
     id: WorkspaceMode;
     label: string;
@@ -837,9 +939,14 @@ export default function CollegeAdminPage() {
       icon: UserRound,
     },
     {
-      id: "facultyAssignment",
-      label: "Faculty Assignment",
+      id: "programmeSuperv",
+      label: "Programme Supervision",
       icon: Briefcase,
+    },
+    {
+      id: "courseAllocation",
+      label: "Course Allocation",
+      icon: BookMarked,
     },
     {
       id: "courseManagement",
@@ -1677,11 +1784,16 @@ export default function CollegeAdminPage() {
               </div>
             )}
 
-            {activeWorkspace === "facultyAssignment" && (
+            {activeWorkspace === "programmeSuperv" && (
               <div className="space-y-7">
                 <div className="border-b border-slate-300/70 pb-5">
-                  <p className={captionClass}>Assignment Matrix</p>
-                  <h3 className={panelTitleClass}>Faculty assignment</h3>
+                  <p className={captionClass}>Supervision Matrix</p>
+                  <h3 className={panelTitleClass}>Programme supervision</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    Assign Heads of Departments (HODs) to supervise and monitor
+                    academic programmes. HODs oversee programme delivery,
+                    quality assurance, and faculty coordination.
+                  </p>
                 </div>
 
                 <div className="border-b border-slate-300/70 pb-6">
@@ -1693,7 +1805,7 @@ export default function CollegeAdminPage() {
                         type="text"
                         value={assignmentSearch}
                         onChange={(e) => setAssignmentSearch(e.target.value)}
-                        placeholder="Search programme mapping"
+                        placeholder="Search programme"
                         className={`${fieldClass} pl-9`}
                       />
                     </div>
@@ -1707,8 +1819,8 @@ export default function CollegeAdminPage() {
                       className={fieldClass}
                     >
                       <option value="all">All Statuses</option>
-                      <option value="assigned">Assigned</option>
-                      <option value="unassigned">Unassigned</option>
+                      <option value="assigned">Supervised</option>
+                      <option value="unassigned">Unsupervised</option>
                     </select>
                   </div>
                 </div>
@@ -1717,7 +1829,9 @@ export default function CollegeAdminPage() {
                   onSubmit={handleAssignTeacher}
                   className="border-b border-slate-300/70 pb-6"
                 >
-                  <p className={`${captionClass} mb-2`}>Assign Faculty</p>
+                  <p className={`${captionClass} mb-2`}>
+                    Assign HOD for programme supervision
+                  </p>
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <select
                       value={assignment.programmeId}
@@ -1746,12 +1860,14 @@ export default function CollegeAdminPage() {
                       }
                       className={fieldClass}
                     >
-                      <option value="">Choose Faculty Member</option>
-                      {teachers.map((teacher) => (
-                        <option key={teacher._id} value={teacher._id}>
-                          {teacher.name}
-                        </option>
-                      ))}
+                      <option value="">Choose HOD</option>
+                      {teachers
+                        .filter((teacher) => teacher.role === "HOD")
+                        .map((teacher) => (
+                          <option key={teacher._id} value={teacher._id}>
+                            {teacher.name}
+                          </option>
+                        ))}
                     </select>
                     <button type="submit" className={primaryButtonClass}>
                       <ListChecks className="h-4 w-4" />
@@ -1770,7 +1886,7 @@ export default function CollegeAdminPage() {
                     <thead>
                       <tr className="border-b border-slate-200 bg-[#f5f7f9]">
                         <th className={tableHeadClass}>Programme</th>
-                        <th className={tableHeadClass}>Assigned Faculty</th>
+                        <th className={tableHeadClass}>Supervisor (HOD)</th>
                         <th className={tableHeadClass}>Status</th>
                       </tr>
                     </thead>
@@ -1791,7 +1907,7 @@ export default function CollegeAdminPage() {
                               : "-"}
                           </td>
                           <td className="px-3 py-4 text-slate-700">
-                            {row.isAssigned ? "Assigned" : "Unassigned"}
+                            {row.isAssigned ? "Supervised" : "Unsupervised"}
                           </td>
                         </tr>
                       ))}
@@ -1799,7 +1915,173 @@ export default function CollegeAdminPage() {
                   </table>
                   {filteredAssignmentRows.length === 0 && (
                     <p className="px-3 py-8 text-sm text-slate-500">
-                      No assignment records found for current filters.
+                      No supervision records found for current filters.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeWorkspace === "courseAllocation" && (
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Allocation Matrix</p>
+                  <h3 className={panelTitleClass}>Course allocation</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    Assign faculty members and HODs to courses. Manage course
+                    teaching assignments, specify instructors for each course
+                    across semesters.
+                  </p>
+                </div>
+
+                <div className="border-b border-slate-300/70 pb-6">
+                  <p className={`${captionClass} mb-2`}>Explore Records</p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={courseAllocationSearch}
+                        onChange={(e) =>
+                          setCourseAllocationSearch(e.target.value)
+                        }
+                        placeholder="Search course name"
+                        className={`${fieldClass} pl-9`}
+                      />
+                    </div>
+                    <select
+                      value={courseAllocationProgrammeFilter}
+                      onChange={(e) =>
+                        setCourseAllocationProgrammeFilter(e.target.value)
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="all">All Programmes</option>
+                      {programmes.map((programme) => (
+                        <option key={programme._id} value={programme._id}>
+                          {programme.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={courseAllocationSemesterFilter}
+                      onChange={(e) =>
+                        setCourseAllocationSemesterFilter(e.target.value)
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="all">All Semesters</option>
+                      {uniqueSemesters.map((sem) => (
+                        <option key={sem} value={sem}>
+                          Semester {sem}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={handleCourseAssignment}
+                  className="border-b border-slate-300/70 pb-6"
+                >
+                  <p className={`${captionClass} mb-2`}>
+                    Assign faculty to course
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <select
+                      value={courseAssignment.courseId}
+                      onChange={(e) =>
+                        setCourseAssignment((prev) => ({
+                          ...prev,
+                          courseId: e.target.value,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="">Choose Course</option>
+                      {courses.map((course) => (
+                        <option key={course._id} value={course._id}>
+                          {course.name} (Semester {course.semester})
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={courseAssignment.teacherId}
+                      onChange={(e) =>
+                        setCourseAssignment((prev) => ({
+                          ...prev,
+                          teacherId: e.target.value,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="">Choose Faculty Member</option>
+                      {teachers
+                        .filter(
+                          (teacher) =>
+                            teacher.role === "TEACHER" ||
+                            teacher.role === "HOD",
+                        )
+                        .map((teacher) => (
+                          <option key={teacher._id} value={teacher._id}>
+                            {teacher.name} ({teacher.role})
+                          </option>
+                        ))}
+                    </select>
+                    <button type="submit" className={primaryButtonClass}>
+                      <ListChecks className="h-4 w-4" />
+                      Assign
+                    </button>
+                  </div>
+                </form>
+                {courseAllocationMessage && (
+                  <p className="text-sm font-medium text-slate-600">
+                    {courseAllocationMessage}
+                  </p>
+                )}
+
+                <div className="overflow-auto border-y border-slate-200 bg-[#fcfdfd]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                        <th className={tableHeadClass}>Course</th>
+                        <th className={tableHeadClass}>Semester</th>
+                        <th className={tableHeadClass}>Programme</th>
+                        <th className={tableHeadClass}>Assigned Faculty</th>
+                        <th className={tableHeadClass}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70">
+                      {filteredCourseAllocationRows.map((row) => (
+                        <tr key={row.course._id} className="hover:bg-[#f7fafc]">
+                          <td className="px-3 py-4 font-medium text-[#111827]">
+                            {row.course.name}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            Semester {row.course.semester}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {typeof row.course.programmeId === "object"
+                              ? row.course.programmeId.name
+                              : "-"}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.assignedTeachers.length > 0
+                              ? row.assignedTeachers
+                                  .map((teacher) => teacher.name)
+                                  .join(", ")
+                              : "-"}
+                          </td>
+                          <td className="px-3 py-4 text-slate-700">
+                            {row.isAssigned ? "Assigned" : "Unassigned"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredCourseAllocationRows.length === 0 && (
+                    <p className="px-3 py-8 text-sm text-slate-500">
+                      No course allocation records found for current filters.
                     </p>
                   )}
                 </div>

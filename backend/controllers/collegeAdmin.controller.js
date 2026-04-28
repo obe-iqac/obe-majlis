@@ -15,7 +15,7 @@ export const getCollegeDetailsById = async (req, res) => {
       collegeId: id,
       role: { $in: ["HOD", "TEACHER"] },
     })
-      .select("name role isActive programmes code")
+      .select("name role isActive programmes courses code")
       .lean();
     const courses = await Course.find({ collegeId: id })
       .populate("programmeId", "name")
@@ -152,7 +152,7 @@ export const AssignTeacherToProgram = async (req, res) => {
     const teacher = await User.findOne({
       _id: teacherId,
       collegeId,
-      role: { $in: ["HOD", "TEACHER"] },
+      role: "HOD",
     });
     if (!teacher) {
       return res.status(404).json({
@@ -187,6 +187,57 @@ export const AssignTeacherToProgram = async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to assign teacher to programme",
+    });
+  }
+};
+export const AssignTeacherToCourse = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId, courseId } = req.body;
+    if (!teacherId || !courseId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID and Course ID are required",
+      });
+    }
+    const teacher = await User.findOne({
+      _id: teacherId,
+      collegeId,
+      role: { $in: ["HOD", "TEACHER"] },
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    const course = await Course.findOne({
+      _id: courseId,
+      collegeId,
+    });
+    if (!course) {
+      return res.status(404).json({
+        status: "error",
+        message: "Course not found in this college",
+      });
+    }
+    if (teacher.courses.includes(courseId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher is already assigned to this course",
+      });
+    }
+    teacher.courses.push(courseId);
+    await teacher.save();
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher assigned to course",
+    });
+  } catch (error) {
+    console.error("Error assigning teacher to course:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to assign teacher to course",
     });
   }
 };
