@@ -59,6 +59,12 @@ const userSchema = new mongoose.Schema(
         ref: "Programme",
       },
     ],
+    courses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
   },
   { timestamps: true },
 );

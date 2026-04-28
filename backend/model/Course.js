@@ -8,19 +8,22 @@ const courseSchema = new mongoose.Schema(
       required: true,
     },
 
-    departmentId: {
+    programmeId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Department",
+      ref: "Programme",
+      required: true,
+    },
+    collegeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "College",
       required: true,
     },
 
-    year: Number,
     semester: Number,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-const Course =
-  mongoose.models.Course || mongoose.model("Course", courseSchema);
+const Course = mongoose.models.Course || mongoose.model("Course", courseSchema);
 
 export default Course;

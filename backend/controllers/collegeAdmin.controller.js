@@ -4,6 +4,7 @@ import Programme from "../model/Programme.js";
 import User from "../model/User.js";
 
 import bcrypt from "bcrypt";
+import Course from "../model/Course.js";
 
 export const getCollegeDetailsById = async (req, res) => {
   try {
@@ -16,10 +17,14 @@ export const getCollegeDetailsById = async (req, res) => {
     })
       .select("name role isActive programmes code")
       .lean();
+    const courses = await Course.find({ collegeId: id })
+      .populate("programmeId", "name")
+      .lean();
     const data = {
       programmes,
       teachers,
       college,
+      courses,
     };
     res.status(200).json({ status: "ok", data });
   } catch (error) {
@@ -207,6 +212,46 @@ export const UpdateProgrammeOutcomes = async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to update programme outcomes",
+    });
+  }
+};
+
+export const AddCourse = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { name, programmeId, semester } = req.body;
+    if (!name || !programmeId || !semester) {
+      return res.status(400).json({
+        status: "error",
+        message: "Name, programme ID and semester are required",
+      });
+    }
+    const programme = await Programme.findOne({
+      _id: programmeId,
+      collegeId,
+    });
+    if (!programme) {
+      return res.status(404).json({
+        status: "error",
+        message: "Programme not found in this college",
+      });
+    }
+    const newCourse = await Course.create({
+      name,
+      programmeId,
+      semester,
+      collegeId,
+    });
+    res.status(200).json({
+      status: "ok",
+      message: "Course added",
+      course: newCourse,
+    });
+  } catch (error) {
+    console.error("Error adding course:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to add course",
     });
   }
 };

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   BadgeCheck,
   BookOpen,
+  BookMarked,
   Briefcase,
   Filter,
   GitBranchPlus,
@@ -15,6 +16,7 @@ import {
   Save,
   Search,
   Target,
+  Trash2,
   UserRound,
   UserSquare2,
   Users,
@@ -42,7 +44,6 @@ type ProgramOutcome = {
 type Programme = {
   _id: string;
   name: string;
-  teacherId: string | null;
 };
 
 type Teacher = {
@@ -59,12 +60,22 @@ type CollegeInfo = {
   attainmentConfig?: Partial<AttainmentValues>;
   attainmentRanges?: Partial<AttainmentRange>[];
 };
+
+type Course = {
+  _id: string;
+  name: string;
+  programmeId: Programme;
+  semester: number;
+  collegeId: string;
+};
+
 type WorkspaceMode =
   | "attainment"
   | "programOutcomes"
   | "programmeManagement"
   | "facultyManagement"
-  | "facultyAssignment";
+  | "facultyAssignment"
+  | "courseManagement";
 
 const ATTTAINMENT_BOUND_MIN = 1;
 const ATTTAINMENT_BOUND_MAX = 20;
@@ -301,6 +312,17 @@ export default function CollegeAdminPage() {
     "all" | "assigned" | "unassigned"
   >("all");
 
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [newCourse, setNewCourse] = useState({
+    name: "",
+    programmeId: "",
+    semester: 1,
+  });
+  const [courseMessage, setCourseMessage] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseProgrammeFilter, setCourseProgrammeFilter] = useState("all");
+  const [courseSemesterFilter, setCourseSemesterFilter] = useState("all");
+
   const [collegeInfo, setCollegeInfo] = useState<CollegeInfo>();
   const attainmentOptions = generateAttainmentOptions(minLevel, maxLevel);
   const percentageOptions = generateNumericOptions(0, 100);
@@ -368,6 +390,7 @@ export default function CollegeAdminPage() {
       );
       setProgrammes(data.data.programmes ?? []);
       setTeachers(data.data.teachers ?? []);
+      setCourses(data.data.courses ?? []);
       setCollegeInfo(data.data.college ?? null);
     }
 
@@ -545,7 +568,6 @@ export default function CollegeAdminPage() {
     const nextProgramme: Programme = {
       _id: `programme-${programmes.length + 1}`,
       name: newProgrammeName.trim(),
-      teacherId: null,
     };
 
     setProgrammeMessage("Creating programme...");
@@ -628,16 +650,48 @@ export default function CollegeAdminPage() {
     );
 
     if (result.success) {
-      setProgrammes(
-        programmes.map((programme) =>
-          programme._id === assignment.programmeId
-            ? { ...programme, teacherId: assignment.teacherId }
-            : programme,
-        ),
-      );
       setAssignmentMessage(
         "Faculty member assigned to programme successfully!",
       );
+    }
+  };
+
+  const handleCourseCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (
+      !newCourse.name.trim() ||
+      !newCourse.programmeId ||
+      !newCourse.semester
+    ) {
+      setCourseMessage("Course name, programme, and semester are required.");
+      return;
+    }
+
+    setCourseMessage("Creating course...");
+
+    const result = await submitToBackend(
+      "/college_admin/add-course",
+      {
+        name: newCourse.name.trim(),
+        programmeId: newCourse.programmeId,
+        semester: Number(newCourse.semester),
+      },
+      setCourseMessage,
+    );
+
+    if (result.success) {
+      const nextCourse: Course = {
+        _id: result.data.course._id,
+        name: result.data.course.name,
+        programmeId: result.data.course.programmeId,
+        semester: result.data.course.semester,
+        collegeId: result.data.course.collegeId,
+      };
+
+      setCourses([...courses, nextCourse]);
+      setNewCourse({ name: "", programmeId: "", semester: 1 });
+      setCourseMessage("Course created successfully!");
     }
   };
 
@@ -659,30 +713,16 @@ export default function CollegeAdminPage() {
   );
 
   const getProgrammeAssignedTeachers = (programme: Programme) =>
-    teachers.filter(
-      (teacher) =>
-        teacher._id === programme.teacherId ||
-        Boolean(
-          teacher.programmes?.some(
-            (progId) => progId.toString() === programme._id.toString(),
-          ),
+    teachers.filter((teacher) =>
+      Boolean(
+        teacher.programmes?.some(
+          (progId) => progId.toString() === programme._id.toString(),
         ),
+      ),
     );
 
   const getTeacherAssignedProgrammesResolved = (teacher: Teacher) => {
-    const fromTeacherProgrammes = getTeacherAssignedProgrammes(
-      teacher.programmes,
-    );
-    const fromProgrammeOwner = programmes.filter(
-      (programme) => programme.teacherId === teacher._id,
-    );
-
-    const unique = new Map<string, Programme>();
-    [...fromTeacherProgrammes, ...fromProgrammeOwner].forEach((programme) => {
-      unique.set(programme._id, programme);
-    });
-
-    return Array.from(unique.values());
+    return getTeacherAssignedProgrammes(teacher.programmes);
   };
 
   const programmeRows = programmes.map((programme) => {
@@ -745,6 +785,32 @@ export default function CollegeAdminPage() {
     return searchMatch && statusMatch;
   });
 
+  const coursesByProgramme = programmes.map((programme) => ({
+    programme,
+    courses: courses.filter(
+      (course) => course.programmeId._id === programme._id,
+    ),
+  }));
+  const filteredCoursesByProgramme = coursesByProgramme.filter((item) => {
+    const courseSearch_match = item.courses.some((course) =>
+      course.name.toLowerCase().includes(courseSearch.trim().toLowerCase()),
+    );
+
+    const programmesMatch =
+      courseProgrammeFilter === "all" ||
+      item.programme._id === courseProgrammeFilter;
+
+    const semesterMatch =
+      courseSemesterFilter === "all" ||
+      item.courses.some(
+        (course) => course.semester === Number(courseSemesterFilter),
+      );
+    return courseSearch_match && programmesMatch && semesterMatch;
+  });
+  const uniqueSemesters = Array.from(
+    new Set(courses.map((course) => course.semester)),
+  ).sort((a, b) => a - b);
+
   const workspaceTabs: {
     id: WorkspaceMode;
     label: string;
@@ -775,6 +841,11 @@ export default function CollegeAdminPage() {
       label: "Faculty Assignment",
       icon: Briefcase,
     },
+    {
+      id: "courseManagement",
+      label: "Course Management",
+      icon: BookMarked,
+    },
   ];
 
   const kpis = [
@@ -794,9 +865,9 @@ export default function CollegeAdminPage() {
       icon: Users,
     },
     {
-      title: "Assigned Programmes",
-      value: programmeRows.filter((row) => row.isAssigned).length,
-      icon: BadgeCheck,
+      title: "Courses",
+      value: courses.length,
+      icon: BookMarked,
     },
   ];
 
@@ -1730,6 +1801,181 @@ export default function CollegeAdminPage() {
                     <p className="px-3 py-8 text-sm text-slate-500">
                       No assignment records found for current filters.
                     </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeWorkspace === "courseManagement" && (
+              <div className="space-y-7">
+                <div className="border-b border-slate-300/70 pb-5">
+                  <p className={captionClass}>Course Matrix</p>
+                  <h3 className={panelTitleClass}>Manage courses</h3>
+                </div>
+
+                <div className="border-b border-slate-300/70 pb-6">
+                  <p className={`${captionClass} mb-3`}>Add New Course</p>
+                  <form onSubmit={handleCourseCreate} className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
+                      <input
+                        type="text"
+                        value={newCourse.name}
+                        onChange={(e) =>
+                          setNewCourse((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                        placeholder="Course name"
+                        className={fieldClass}
+                      />
+                      <select
+                        value={newCourse.programmeId}
+                        onChange={(e) =>
+                          setNewCourse((prev) => ({
+                            ...prev,
+                            programmeId: e.target.value,
+                          }))
+                        }
+                        className={fieldClass}
+                      >
+                        <option value="">Select Programme</option>
+                        {programmes.map((programme) => (
+                          <option key={programme._id} value={programme._id}>
+                            {programme.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={newCourse.semester}
+                        onChange={(e) =>
+                          setNewCourse((prev) => ({
+                            ...prev,
+                            semester: Number(e.target.value),
+                          }))
+                        }
+                        className={fieldClass}
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                          <option key={sem} value={sem}>
+                            Semester {sem}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit" className={primaryButtonClass}>
+                        <Plus className="h-4 w-4" />
+                        Add Course
+                      </button>
+                    </div>
+                  </form>
+                  {courseMessage && (
+                    <p className="mt-3 text-sm font-medium text-slate-600">
+                      {courseMessage}
+                    </p>
+                  )}
+                </div>
+
+                <div className="border-b border-slate-300/70 pb-6">
+                  <p className={`${captionClass} mb-2`}>Filter Courses</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_1fr_1fr]">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                        placeholder="Search courses"
+                        className={`${fieldClass} pl-9`}
+                      />
+                    </div>
+                    <select
+                      value={courseProgrammeFilter}
+                      onChange={(e) => setCourseProgrammeFilter(e.target.value)}
+                      className={fieldClass}
+                    >
+                      <option value="all">All Programmes</option>
+                      {programmes.map((programme) => (
+                        <option key={programme._id} value={programme._id}>
+                          {programme.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={courseSemesterFilter}
+                      onChange={(e) => setCourseSemesterFilter(e.target.value)}
+                      className={fieldClass}
+                    >
+                      <option value="all">All Semesters</option>
+                      {uniqueSemesters.map((sem) => (
+                        <option key={sem} value={sem}>
+                          Semester {sem}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {filteredCoursesByProgramme.map((item) => (
+                    <div key={item.programme._id} className="space-y-3">
+                      <div className="rounded-lg border border-slate-300/70 bg-slate-50 px-4 py-3">
+                        <h4 className="font-semibold text-[#111827]">
+                          {item.programme.name}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {item.courses.length} course(s)
+                        </p>
+                      </div>
+
+                      <div className="overflow-auto border border-slate-200 rounded-lg bg-[#fcfdfd]">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-[#f5f7f9]">
+                              <th className={tableHeadClass}>Course Name</th>
+                              <th className={tableHeadClass}>Semester</th>
+                              <th className={tableHeadClass}>Programme</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200/70">
+                            {item.courses.length > 0 ? (
+                              item.courses.map((course) => (
+                                <tr
+                                  key={course._id}
+                                  className="hover:bg-[#f7fafc]"
+                                >
+                                  <td className="px-3 py-4 font-medium text-[#111827]">
+                                    {course.name}
+                                  </td>
+                                  <td className="px-3 py-4 text-slate-700">
+                                    Semester {course.semester}
+                                  </td>
+                                  <td className="px-3 py-4 text-slate-700">
+                                    {item.programme.name}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={3}
+                                  className="px-3 py-8 text-center text-sm text-slate-500"
+                                >
+                                  No courses assigned to this programme.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+
+                  {filteredCoursesByProgramme.length === 0 && (
+                    <div className="rounded-lg border border-slate-300/70 bg-slate-50 px-4 py-8 text-center">
+                      <p className="text-sm text-slate-500">
+                        No courses found for current filters.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

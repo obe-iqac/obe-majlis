@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  AddCourse,
   AddProgram,
   AddTeacher,
   AssignTeacherToProgram,
@@ -16,4 +17,5 @@ router.post("/add-program", AddProgram);
 router.post("/add-teacher", AddTeacher);
 router.post("/assign-teacher", AssignTeacherToProgram);
 router.put("/update-pos", UpdateProgrammeOutcomes);
+router.post("/add-course", AddCourse);
 export default router;
