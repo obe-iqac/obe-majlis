@@ -40,7 +40,7 @@ export type CollegeInfo = {
 export type Course = {
   _id: string;
   name: string;
-  programmeId: Programme;
+  programmeId: string | Programme;
   semester: number;
   collegeId: string;
 };

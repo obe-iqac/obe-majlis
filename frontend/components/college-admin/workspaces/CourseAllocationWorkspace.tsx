@@ -35,6 +35,7 @@ type Props = {
   courseAllocationMessage: string;
   filteredCourseAllocationRows: CourseRow[];
   handleCourseAssignment: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleRevokeCourse: (courseId: string, teacherId: string) => Promise<void>;
 };
 
 export default function CourseAllocationWorkspace({
@@ -58,6 +59,7 @@ export default function CourseAllocationWorkspace({
   courseAllocationMessage,
   filteredCourseAllocationRows,
   handleCourseAssignment,
+  handleRevokeCourse,
 }: Props) {
   return (
     <div className="space-y-7">
@@ -176,6 +178,7 @@ export default function CourseAllocationWorkspace({
               <th className={tableHeadClass}>Programme</th>
               <th className={tableHeadClass}>Assigned Faculty</th>
               <th className={tableHeadClass}>Status</th>
+              <th className={tableHeadClass}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/70">
@@ -201,6 +204,22 @@ export default function CourseAllocationWorkspace({
                 </td>
                 <td className="px-3 py-4 text-slate-700">
                   {row.isAssigned ? "Assigned" : "Unassigned"}
+                </td>
+                <td
+                  onClick={() => {
+                    if (!row.isAssigned) {
+                      alert("No faculty assigned to revoke for this course.");
+                      return;
+                    } else {
+                      handleRevokeCourse(
+                        row.course._id,
+                        row.assignedTeachers[0]?._id || "",
+                      );
+                    }
+                  }}
+                  className="px-3 py-4 font-bold text-red-500 cursor-pointer"
+                >
+                  UNASSIGN
                 </td>
               </tr>
             ))}

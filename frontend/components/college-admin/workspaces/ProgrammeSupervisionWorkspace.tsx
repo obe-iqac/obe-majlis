@@ -34,6 +34,7 @@ type Props = {
   assignmentMessage: string;
   filteredAssignmentRows: ProgrammeRow[];
   handleAssignTeacher: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleRevokeTeacher: (programId: string, teacherId: string) => Promise<void>;
 };
 
 export default function ProgrammeSupervisionWorkspace({
@@ -53,6 +54,7 @@ export default function ProgrammeSupervisionWorkspace({
   assignmentMessage,
   filteredAssignmentRows,
   handleAssignTeacher,
+  handleRevokeTeacher,
 }: Props) {
   return (
     <div className="space-y-7">
@@ -158,6 +160,7 @@ export default function ProgrammeSupervisionWorkspace({
               <th className={tableHeadClass}>Programme</th>
               <th className={tableHeadClass}>Supervisor (HOD)</th>
               <th className={tableHeadClass}>Status</th>
+              <th className={tableHeadClass}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/70">
@@ -175,6 +178,22 @@ export default function ProgrammeSupervisionWorkspace({
                 </td>
                 <td className="px-3 py-4 text-slate-700">
                   {row.isAssigned ? "Supervised" : "Unsupervised"}
+                </td>
+                <td
+                  className="px-3 py-4 text-red-500 cursor-pointer font-bold"
+                  onClick={() => {
+                    if (!row.isAssigned) {
+                      alert("No supervisor assigned to revoke.");
+                      return;
+                    } else {
+                      handleRevokeTeacher(
+                        row.programme._id,
+                        row.assignedTeachers[0]?._id || "",
+                      );
+                    }
+                  }}
+                >
+                  UNASSIGN
                 </td>
               </tr>
             ))}

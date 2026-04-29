@@ -345,6 +345,7 @@ export default function CollegeAdminPage() {
                 assignmentMessage={data.assignmentMessage}
                 filteredAssignmentRows={filters.filteredAssignmentRows}
                 handleAssignTeacher={handlers.handleAssignTeacher}
+                handleRevokeTeacher={handlers.handleRevokeProgram}
               />
             )}
 
@@ -380,6 +381,7 @@ export default function CollegeAdminPage() {
                   filters.filteredCourseAllocationRows
                 }
                 handleCourseAssignment={handlers.handleCourseAssignment}
+                handleRevokeCourse={handlers.handleRevokeCourse}
               />
             )}
           </section>

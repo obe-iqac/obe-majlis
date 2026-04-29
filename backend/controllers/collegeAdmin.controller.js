@@ -380,3 +380,109 @@ export const deleteProgram = async (req, res) => {
     });
   }
 };
+
+export const RevokeTeacherFromCourse = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId } = req.body;
+    const { courseId } = req.params;
+    if (!teacherId || !courseId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID and Course ID are required",
+      });
+    }
+    const teacher = await User.findOne({
+      _id: teacherId,
+      collegeId,
+      role: { $in: ["HOD", "TEACHER"] },
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    const course = await Course.findOne({
+      _id: courseId,
+      collegeId,
+    });
+    if (!course) {
+      return res.status(404).json({
+        status: "error",
+        message: "Course not found in this college",
+      });
+    }
+    if (!teacher.courses.includes(courseId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher is not assigned to this course",
+      });
+    }
+    teacher.courses.pull(courseId);
+    await teacher.save();
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher revoked froms course",
+    });
+  } catch (error) {
+    console.error("Error revoking teacher from course:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to revoke teacher from course",
+    });
+  }
+};
+
+export const RevokeTeacherFromProgram = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId } = req.body;
+    const { programmeId } = req.params;
+    if (!teacherId || !programmeId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID and Programme ID are required",
+      });
+    }
+    const teacher = await User.findOne({
+      _id: teacherId,
+      collegeId,
+      role: "HOD",
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    const programme = await Programme.findOne({
+      _id: programmeId,
+      collegeId,
+    });
+    if (!programme) {
+      return res.status(404).json({
+        status: "error",
+        message: "Programme not found in this college",
+      });
+    }
+    if (!teacher.programmes.includes(programmeId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher is not assigned to this programme",
+      });
+    }
+    teacher.programmes.pull(programmeId);
+    await teacher.save();
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher revoked from programme",
+    });
+  } catch (error) {
+    console.error("Error revoking teacher from programme:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to revoke teacher from programme",
+    });
+  }
+};

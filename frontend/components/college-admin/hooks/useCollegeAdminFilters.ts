@@ -139,12 +139,14 @@ export const useCollegeAdminFilters = ({
       return searchMatch && statusMatch;
     });
   }, [programmeRows, assignmentSearch, assignmentStatusFilter]);
-
+  const extractProgrammeId = (programmeId: string | Programme) => {
+    return typeof programmeId === "string" ? programmeId : programmeId._id;
+  };
   const coursesByProgramme = useMemo<CourseByProgramme[]>(() => {
     return programmes.map((programme) => ({
       programme,
       courses: courses.filter(
-        (course) => course.programmeId._id === programme._id,
+        (course) => extractProgrammeId(course.programmeId) === programme._id,
       ),
     }));
   }, [programmes, courses]);
@@ -154,17 +156,14 @@ export const useCollegeAdminFilters = ({
       const courseSearchMatch = item.courses.some((course) =>
         course.name.toLowerCase().includes(courseSearch.trim().toLowerCase()),
       );
-
       const programmesMatch =
         courseProgrammeFilter === "all" ||
         item.programme._id === courseProgrammeFilter;
-
       const semesterMatch =
         courseSemesterFilter === "all" ||
         item.courses.some(
           (course) => course.semester === Number(courseSemesterFilter),
         );
-
       return courseSearchMatch && programmesMatch && semesterMatch;
     });
   }, [

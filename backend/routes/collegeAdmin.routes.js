@@ -8,6 +8,8 @@ import {
   deleteCourse,
   deleteProgram,
   getCollegeDetailsById,
+  RevokeTeacherFromCourse,
+  RevokeTeacherFromProgram,
   updateCollegeAttainmentConfig,
   UpdateProgrammeOutcomes,
 } from "../controllers/collegeAdmin.controller.js";
@@ -25,4 +27,6 @@ router.post("/add-course", AddCourse);
 
 router.delete("/delete-course/:courseId", deleteCourse);
 router.delete("/delete-program/:programmeId", deleteProgram);
+router.put("/revoke-teacher-course/:courseId", RevokeTeacherFromCourse);
+router.put("/revoke-teacher-program/:programmeId", RevokeTeacherFromProgram);
 export default router;

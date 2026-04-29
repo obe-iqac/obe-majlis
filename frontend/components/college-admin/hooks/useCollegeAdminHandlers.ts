@@ -436,7 +436,6 @@ export const useCollegeAdminHandlers = ({
         semester: result.data.course.semester,
         collegeId: result.data.course.collegeId,
       };
-
       setCourses([...courses, nextCourse]);
       setNewCourse({ name: "", programmeId: "", semester: 1 });
       setCourseMessage("Course created successfully!");
@@ -527,6 +526,79 @@ export const useCollegeAdminHandlers = ({
       setProgrammeMessage("Program and allocations deleted successfully!");
     }
   };
+
+  const handleRevokeProgram = async (programId: string, teacherId: string) => {
+    if (!programId || !teacherId) {
+      setAssignmentMessage("Select both a programme and a faculty member.");
+      return;
+    }
+    setAssignmentMessage("Assigning faculty member to programme...");
+
+    const result = await submitToBackend(
+      `/college_admin/revoke-teacher-program/${programId}`,
+      {
+        teacherId: teacherId,
+      },
+      setAssignmentMessage,
+      "PUT",
+    );
+
+    if (result.success) {
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((teacher) => {
+          if (teacher._id !== teacherId) {
+            return teacher;
+          }
+
+          return {
+            ...teacher,
+            programmes: (teacher.programmes ?? []).filter(
+              (pId) => pId !== programId,
+            ),
+          };
+        }),
+      );
+      setAssignmentMessage(
+        "Faculty member revoked from programme successfully!",
+      );
+    }
+  };
+
+  const handleRevokeCourse = async (courseId: string, teacherId: string) => {
+    if (!courseId || !teacherId) {
+      setCourseAllocationMessage("Select both a course and a faculty member.");
+      return;
+    }
+
+    setCourseAllocationMessage("Revoking faculty member from course");
+
+    const result = await submitToBackend(
+      `/college_admin/revoke-teacher-course/${courseId}`,
+      {
+        teacherId,
+      },
+      setCourseAllocationMessage,
+      "PUT",
+    );
+
+    if (result.success) {
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((teacher) => {
+          if (teacher._id !== teacherId) {
+            return teacher;
+          }
+
+          return {
+            ...teacher,
+            courses: (teacher.courses ?? []).filter((cId) => cId !== courseId),
+          };
+        }),
+      );
+      setCourseAllocationMessage(
+        "Faculty member revoked from course successfully!",
+      );
+    }
+  };
   return {
     handleLevelChange,
     handleMinMaxChange,
@@ -542,5 +614,7 @@ export const useCollegeAdminHandlers = ({
     handleCourseAssignment,
     handleCourseDelete,
     handleProgramDelete,
+    handleRevokeProgram,
+    handleRevokeCourse,
   };
 };
