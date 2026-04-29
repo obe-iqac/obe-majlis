@@ -324,6 +324,7 @@ export default function CollegeAdminPage() {
                 facultyMessage={data.facultyMessage}
                 filteredFacultyRows={filters.filteredFacultyRows}
                 handleTeacherCreate={handlers.handleTeacherCreate}
+                handleTeacherUpdate={handlers.handleUpdateUser}
               />
             )}
 

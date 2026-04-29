@@ -29,6 +29,7 @@ export type Teacher = {
   role?: "TEACHER" | "HOD";
   programmes?: string[];
   courses?: string[];
+  isActive: boolean;
 };
 
 export type CollegeInfo = {

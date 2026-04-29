@@ -13,7 +13,14 @@ import {
 } from "../utils/attainmentHelpers";
 
 type SubmitResult =
-  | { success: true; data: any }
+  | {
+      success: true;
+      data: Record<string, unknown> & {
+        user?: Teacher;
+        teacher?: Teacher;
+        course?: Course;
+      };
+    }
   | { success: false; error: string };
 
 type SubmitToBackend = (
@@ -345,12 +352,18 @@ export const useCollegeAdminHandlers = ({
     );
 
     if (result.success) {
+      if (!result.data.user) {
+        setFacultyMessage("Faculty member created, but response was incomplete.");
+        return;
+      }
+
       const nextTeacher: Teacher = {
         _id: result.data.user._id,
         name: result.data.user.name,
         code: result.data.user.code,
         role: result.data.user.role,
         programmes: result.data.user.programmes ?? [],
+        isActive: result.data.user.isActive,
       };
 
       setTeachers([...teachers, nextTeacher]);
@@ -361,7 +374,6 @@ export const useCollegeAdminHandlers = ({
       }));
       setFacultyMessage("Faculty member account created successfully!");
     }
-    console.log("Teacher creation result:", result);
   };
 
   const handleAssignTeacher = async (event: FormEvent<HTMLFormElement>) => {
@@ -429,6 +441,11 @@ export const useCollegeAdminHandlers = ({
     );
 
     if (result.success) {
+      if (!result.data.course) {
+        setCourseMessage("Course created, but response was incomplete.");
+        return;
+      }
+
       const nextCourse: Course = {
         _id: result.data.course._id,
         name: result.data.course.name,
@@ -599,6 +616,59 @@ export const useCollegeAdminHandlers = ({
       );
     }
   };
+
+  const handleUpdateUser = async (
+    teacherId: string,
+    updatedData: Partial<{
+      name: string;
+      code: string;
+      password: string;
+      role: "TEACHER" | "HOD";
+      isActive: boolean;
+    }>,
+  ) => {
+    if (!teacherId) {
+      setFacultyMessage("Teacher id is required for update.");
+      return;
+    }
+
+    setFacultyMessage("Updating faculty member...");
+
+    const result = await submitToBackend(
+      `/college_admin/update-teacher/${teacherId}`,
+      updatedData,
+      setFacultyMessage,
+      "PUT",
+    );
+
+    if (result.success) {
+      const safeUpdatedData = { ...updatedData };
+      delete safeUpdatedData.password;
+      const updatedTeacher = result.data.teacher;
+
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((teacher) => {
+          if (teacher._id !== teacherId) {
+            return teacher;
+          }
+
+          return {
+            ...teacher,
+            name: updatedTeacher?.name ?? safeUpdatedData.name ?? teacher.name,
+            code: updatedTeacher?.code ?? safeUpdatedData.code ?? teacher.code,
+            role: updatedTeacher?.role ?? safeUpdatedData.role ?? teacher.role,
+            programmes: updatedTeacher?.programmes ?? teacher.programmes,
+            courses: updatedTeacher?.courses ?? teacher.courses,
+            isActive:
+              updatedTeacher?.isActive ??
+              safeUpdatedData.isActive ??
+              teacher.isActive,
+          };
+        }),
+      );
+      setFacultyMessage("Faculty member updated successfully!");
+    }
+  };
   return {
     handleLevelChange,
     handleMinMaxChange,
@@ -616,5 +686,6 @@ export const useCollegeAdminHandlers = ({
     handleProgramDelete,
     handleRevokeProgram,
     handleRevokeCourse,
+    handleUpdateUser,
   };
 };

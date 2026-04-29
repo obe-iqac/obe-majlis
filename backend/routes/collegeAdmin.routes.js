@@ -12,6 +12,7 @@ import {
   RevokeTeacherFromProgram,
   updateCollegeAttainmentConfig,
   UpdateProgrammeOutcomes,
+  updateTeacher,
 } from "../controllers/collegeAdmin.controller.js";
 
 const router = express.Router();
@@ -29,4 +30,5 @@ router.delete("/delete-course/:courseId", deleteCourse);
 router.delete("/delete-program/:programmeId", deleteProgram);
 router.put("/revoke-teacher-course/:courseId", RevokeTeacherFromCourse);
 router.put("/revoke-teacher-program/:programmeId", RevokeTeacherFromProgram);
+router.put("/update-teacher/:teacherId", updateTeacher);
 export default router;

@@ -126,10 +126,20 @@ export const AddTeacher = async (req, res) => {
       collegeId: id,
       createdBy: req.user._id,
     });
+    const safeUser = {
+      _id: newHod._id,
+      name: newHod.name,
+      code: newHod.code,
+      role: newHod.role,
+      programmes: newHod.programmes,
+      courses: newHod.courses,
+      isActive: newHod.isActive,
+      isPasswordSet: newHod.isPasswordSet,
+    };
     res.status(200).json({
       status: "ok",
       message: "User added",
-      user: newHod,
+      user: safeUser,
     });
   } catch (error) {
     console.error("Error creating user:", error);
@@ -483,6 +493,61 @@ export const RevokeTeacherFromProgram = async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to revoke teacher from programme",
+    });
+  }
+};
+
+export const updateTeacher = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId } = req.params;
+    const { name, code, password, role, isActive } = req.body;
+    if (!teacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID is required",
+      });
+    }
+    const teacher = await User.findOne({
+      _id: teacherId,
+      collegeId,
+      role: { $in: ["HOD", "TEACHER"] },
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    if (name) teacher.name = name;
+    if (code) teacher.code = code.toUpperCase().trim();
+    if (role) teacher.role = role.toUpperCase();
+    if (isActive !== undefined) teacher.isActive = isActive;
+    if (password) {
+      teacher.password = await bcrypt.hash(password, 10);
+      teacher.isPasswordSet = true;
+    }
+    await teacher.save();
+    const safeTeacher = {
+      _id: teacher._id,
+      name: teacher.name,
+      code: teacher.code,
+      role: teacher.role,
+      programmes: teacher.programmes,
+      courses: teacher.courses,
+      isActive: teacher.isActive,
+      isPasswordSet: teacher.isPasswordSet,
+    };
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher updated",
+      teacher: safeTeacher,
+    });
+  } catch (error) {
+    console.error("Error updating teacher:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to update teacher",
     });
   }
 };
