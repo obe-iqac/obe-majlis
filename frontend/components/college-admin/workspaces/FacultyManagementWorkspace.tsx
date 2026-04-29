@@ -5,6 +5,7 @@ import {
   FacultyRoleFilter,
   FacultyRow,
 } from "../types";
+import { Trash } from "lucide-react";
 
 type EditableFaculty = {
   name: string;
@@ -53,6 +54,7 @@ type Props = {
     teacherId: string,
     updatedData: FacultyUpdatePayload,
   ) => Promise<void>;
+  handleTeacherDelete: (teacherId: string) => Promise<void>;
 };
 
 const emptyEditableFaculty: EditableFaculty = {
@@ -81,11 +83,11 @@ export default function FacultyManagementWorkspace({
   filteredFacultyRows,
   handleTeacherCreate,
   handleTeacherUpdate,
+  handleTeacherDelete,
 }: Props) {
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
-  const [editableFaculty, setEditableFaculty] = useState<EditableFaculty>(
-    emptyEditableFaculty,
-  );
+  const [editableFaculty, setEditableFaculty] =
+    useState<EditableFaculty>(emptyEditableFaculty);
 
   const beginEdit = (row: FacultyRow) => {
     setEditingTeacherId(row.teacher._id);
@@ -241,7 +243,10 @@ export default function FacultyManagementWorkspace({
             Create
           </button>
         </div>
-        <p id="new-faculty-password-note" className="mt-2 text-xs text-slate-500">
+        <p
+          id="new-faculty-password-note"
+          className="mt-2 text-xs text-slate-500"
+        >
           The password can be set here, but it will not be shown after saving.
           To change it later, use the edit password setter.
         </p>
@@ -273,7 +278,11 @@ export default function FacultyManagementWorkspace({
 
               return (
                 <Fragment key={row.teacher._id}>
-                  <tr className={isEditing ? "bg-[#f7fafc]" : "hover:bg-[#f7fafc]"}>
+                  <tr
+                    className={
+                      isEditing ? "bg-[#f7fafc]" : "hover:bg-[#f7fafc]"
+                    }
+                  >
                     <td className="px-3 py-4 font-medium text-[#111827]">
                       {isEditing ? (
                         <input
@@ -374,10 +383,24 @@ export default function FacultyManagementWorkspace({
                           onClick={() => beginEdit(row)}
                           className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#eef3f6] px-3 text-sm font-semibold text-[#25425a] transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20"
                         >
-                          <Edit3 className="h-4 w-4" />
                           Edit
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Are you sure you want to terminate ${row.teacher.name}`,
+                            )
+                          ) {
+                            handleTeacherDelete(row.teacher._id);
+                          }
+                        }}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md  px-3 text-sm font-semibold text-red-500 transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20"
+                      >
+                        TERMINATE
+                      </button>
                     </td>
                   </tr>
                   {isEditing && (

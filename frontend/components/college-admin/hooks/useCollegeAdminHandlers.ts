@@ -353,7 +353,9 @@ export const useCollegeAdminHandlers = ({
 
     if (result.success) {
       if (!result.data.user) {
-        setFacultyMessage("Faculty member created, but response was incomplete.");
+        setFacultyMessage(
+          "Faculty member created, but response was incomplete.",
+        );
         return;
       }
 
@@ -669,6 +671,29 @@ export const useCollegeAdminHandlers = ({
       setFacultyMessage("Faculty member updated successfully!");
     }
   };
+
+  const handleDeleteTeacher = async (teacherId: string) => {
+    if (!teacherId) {
+      setFacultyMessage("Teacher id is required for deletion.");
+      return;
+    }
+
+    setFacultyMessage("Deleting faculty member...");
+
+    const result = await submitToBackend(
+      `/college_admin/delete-teacher/${teacherId}`,
+      {},
+      setFacultyMessage,
+      "DELETE",
+    );
+    if (result.success) {
+      setTeachers((prevTeachers) =>
+        prevTeachers.filter((teacher) => teacher._id !== teacherId),
+      );
+      setFacultyMessage("Faculty member deleted successfully!");
+    }
+  };
+
   return {
     handleLevelChange,
     handleMinMaxChange,
@@ -687,5 +712,6 @@ export const useCollegeAdminHandlers = ({
     handleRevokeProgram,
     handleRevokeCourse,
     handleUpdateUser,
+    handleDeleteTeacher,
   };
 };

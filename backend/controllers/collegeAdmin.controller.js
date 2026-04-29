@@ -551,3 +551,37 @@ export const updateTeacher = async (req, res) => {
     });
   }
 };
+
+export const deleteTeacher = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { teacherId } = req.params;
+    if (!teacherId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Teacher ID is required",
+      });
+    }
+    const teacher = await User.findOneAndDelete({
+      _id: teacherId,
+      collegeId,
+      role: { $in: ["HOD", "TEACHER"] },
+    });
+    if (!teacher) {
+      return res.status(404).json({
+        status: "error",
+        message: "Teacher not found in this college",
+      });
+    }
+    res.status(200).json({
+      status: "ok",
+      message: "Teacher deleted",
+    });
+  } catch (error) {
+    console.error("Error deleting teacher:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to delete teacher",
+    });
+  }
+};

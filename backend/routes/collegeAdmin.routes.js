@@ -7,6 +7,7 @@ import {
   AssignTeacherToProgram,
   deleteCourse,
   deleteProgram,
+  deleteTeacher,
   getCollegeDetailsById,
   RevokeTeacherFromCourse,
   RevokeTeacherFromProgram,
@@ -31,4 +32,5 @@ router.delete("/delete-program/:programmeId", deleteProgram);
 router.put("/revoke-teacher-course/:courseId", RevokeTeacherFromCourse);
 router.put("/revoke-teacher-program/:programmeId", RevokeTeacherFromProgram);
 router.put("/update-teacher/:teacherId", updateTeacher);
+router.delete("/delete-teacher/:teacherId", deleteTeacher);
 export default router;
