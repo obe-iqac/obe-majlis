@@ -65,16 +65,27 @@ export const useCollegeAdminFilters = ({
   );
 
   const programmeRows = useMemo<ProgrammeRow[]>(() => {
-    return programmes.map((programme) => {
+    return programmes.flatMap((programme): ProgrammeRow[] => {
       const assignedTeachers = getProgrammeAssignedTeachers(
         teachers,
         programme,
       );
-      return {
+
+      if (assignedTeachers.length === 0) {
+        return [
+          {
+            programme,
+            assignedTeachers: [],
+            isAssigned: false,
+          },
+        ];
+      }
+
+      return assignedTeachers.map((teacher) => ({
         programme,
-        assignedTeachers,
-        isAssigned: assignedTeachers.length > 0,
-      };
+        assignedTeachers: [teacher], // always single teacher inside array
+        isAssigned: true,
+      }));
     });
   }, [programmes, teachers]);
 
@@ -182,13 +193,26 @@ export const useCollegeAdminFilters = ({
   );
 
   const courseRows = useMemo<CourseRow[]>(() => {
-    return courses.map((course) => {
+    return courses.flatMap((course): CourseRow[] => {
       const assignedTeachers = getCourseAssignedTeachers(teachers, course);
-      return {
-        course,
-        assignedTeachers,
-        isAssigned: assignedTeachers.length > 0,
-      };
+
+      if (assignedTeachers.length === 0) {
+        return [
+          {
+            course,
+            assignedTeachers: [],
+            isAssigned: false,
+          },
+        ];
+      }
+
+      return assignedTeachers.map(
+        (teacher): CourseRow => ({
+          course,
+          assignedTeachers: [teacher],
+          isAssigned: true,
+        }),
+      );
     });
   }, [courses, teachers]);
 

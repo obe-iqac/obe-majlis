@@ -177,13 +177,12 @@ export default function CourseAllocationWorkspace({
               <th className={tableHeadClass}>Semester</th>
               <th className={tableHeadClass}>Programme</th>
               <th className={tableHeadClass}>Assigned Faculty</th>
-              <th className={tableHeadClass}>Status</th>
               <th className={tableHeadClass}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/70">
-            {filteredCourseAllocationRows.map((row) => (
-              <tr key={row.course._id} className="hover:bg-[#f7fafc]">
+            {filteredCourseAllocationRows.map((row, index) => (
+              <tr key={index} className="hover:bg-[#f7fafc]">
                 <td className="px-3 py-4 font-medium text-[#111827]">
                   {row.course.name}
                 </td>
@@ -201,9 +200,6 @@ export default function CourseAllocationWorkspace({
                         .map((teacher) => teacher.name)
                         .join(", ")
                     : "-"}
-                </td>
-                <td className="px-3 py-4 text-slate-700">
-                  {row.isAssigned ? "Assigned" : "Unassigned"}
                 </td>
                 <td
                   onClick={() => {

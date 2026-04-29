@@ -159,13 +159,12 @@ export default function ProgrammeSupervisionWorkspace({
             <tr className="border-b border-slate-200 bg-[#f5f7f9]">
               <th className={tableHeadClass}>Programme</th>
               <th className={tableHeadClass}>Supervisor (HOD)</th>
-              <th className={tableHeadClass}>Status</th>
               <th className={tableHeadClass}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/70">
-            {filteredAssignmentRows.map((row) => (
-              <tr key={row.programme._id} className="hover:bg-[#f7fafc]">
+            {filteredAssignmentRows.map((row, index) => (
+              <tr key={index} className="hover:bg-[#f7fafc]">
                 <td className="px-3 py-4 font-medium text-[#111827]">
                   {row.programme.name}
                 </td>
@@ -175,9 +174,6 @@ export default function ProgrammeSupervisionWorkspace({
                         .map((teacher) => teacher.name)
                         .join(", ")
                     : "-"}
-                </td>
-                <td className="px-3 py-4 text-slate-700">
-                  {row.isAssigned ? "Supervised" : "Unsupervised"}
                 </td>
                 <td
                   className="px-3 py-4 text-red-500 cursor-pointer font-bold"
