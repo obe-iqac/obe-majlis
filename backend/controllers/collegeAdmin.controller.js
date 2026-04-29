@@ -306,3 +306,77 @@ export const AddCourse = async (req, res) => {
     });
   }
 };
+
+export const deleteCourse = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { courseId } = req.params;
+    if (!courseId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Course ID is required",
+      });
+    }
+    const course = await Course.findOneAndDelete({
+      _id: courseId,
+      collegeId,
+    });
+    if (!course) {
+      return res.status(404).json({
+        status: "error",
+        message: "Course not found in this college",
+      });
+    }
+    await User.updateMany(
+      { collegeId, courses: courseId },
+      { $pull: { courses: courseId } },
+    );
+    res.status(200).json({
+      status: "ok",
+      message: "Course deleted",
+    });
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to delete course",
+    });
+  }
+};
+
+export const deleteProgram = async (req, res) => {
+  try {
+    const collegeId = req.college._id;
+    const { programmeId } = req.params;
+    if (!programmeId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Programme ID is required",
+      });
+    }
+    const programme = await Programme.findOneAndDelete({
+      _id: programmeId,
+      collegeId,
+    });
+    if (!programme) {
+      return res.status(404).json({
+        status: "error",
+        message: "Programme not found in this college",
+      });
+    }
+    await User.updateMany(
+      { collegeId, programmes: programmeId },
+      { $pull: { programmes: programmeId } },
+    );
+    res.status(200).json({
+      status: "ok",
+      message: "Program deleted",
+    });
+  } catch (error) {
+    console.error("Error deleting program:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to delete program",
+    });
+  }
+};

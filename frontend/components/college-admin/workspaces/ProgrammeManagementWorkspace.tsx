@@ -19,6 +19,7 @@ type Props = {
   programmeMessage: string;
   filteredProgrammeRows: ProgrammeRow[];
   handleProgrammeCreate: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleProgrammeDelete: (_id: string) => Promise<void>;
 };
 
 export default function ProgrammeManagementWorkspace({
@@ -36,6 +37,7 @@ export default function ProgrammeManagementWorkspace({
   programmeMessage,
   filteredProgrammeRows,
   handleProgrammeCreate,
+  handleProgrammeDelete,
 }: Props) {
   return (
     <div className="space-y-7">
@@ -108,6 +110,7 @@ export default function ProgrammeManagementWorkspace({
               <th className={tableHeadClass}>Programme</th>
               <th className={tableHeadClass}>Assignment Status</th>
               <th className={tableHeadClass}>Faculty Members</th>
+              <th className={tableHeadClass}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/70">
@@ -125,6 +128,12 @@ export default function ProgrammeManagementWorkspace({
                         .map((teacher) => teacher.name)
                         .join(", ")
                     : "-"}
+                </td>
+                <td
+                  className="px-3 py-4 text-red-500 font-bold cursor-pointer"
+                  onClick={() => handleProgrammeDelete(row.programme._id)}
+                >
+                  Remove
                 </td>
               </tr>
             ))}

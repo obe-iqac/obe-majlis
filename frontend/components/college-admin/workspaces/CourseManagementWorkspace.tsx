@@ -31,6 +31,7 @@ type Props = {
   uniqueSemesters: number[];
   filteredCoursesByProgramme: CourseByProgramme[];
   handleCourseCreate: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  handleCourseDelete: (_id: string) => Promise<void>;
 };
 
 export default function CourseManagementWorkspace({
@@ -52,6 +53,7 @@ export default function CourseManagementWorkspace({
   uniqueSemesters,
   filteredCoursesByProgramme,
   handleCourseCreate,
+  handleCourseDelete,
 }: Props) {
   return (
     <div className="space-y-7">
@@ -181,6 +183,7 @@ export default function CourseManagementWorkspace({
                     <th className={tableHeadClass}>Course Name</th>
                     <th className={tableHeadClass}>Semester</th>
                     <th className={tableHeadClass}>Programme</th>
+                    <th className={tableHeadClass}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/70">
@@ -195,6 +198,12 @@ export default function CourseManagementWorkspace({
                         </td>
                         <td className="px-3 py-4 text-slate-700">
                           {item.programme.name}
+                        </td>
+                        <td
+                          className="px-3 py-4 text-red-500 font-bold cursor-pointer hover:text-red-700"
+                          onClick={() => handleCourseDelete(course._id)}
+                        >
+                          Remove
                         </td>
                       </tr>
                     ))

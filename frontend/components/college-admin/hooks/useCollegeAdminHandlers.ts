@@ -20,7 +20,7 @@ type SubmitToBackend = (
   endpoint: string,
   payload: unknown,
   setPageMessage: (message: string) => void,
-  method?: "POST" | "PUT" | "PATCH",
+  method?: "POST" | "PUT" | "PATCH" | "DELETE",
 ) => Promise<SubmitResult>;
 
 type HookProps = {
@@ -483,6 +483,50 @@ export const useCollegeAdminHandlers = ({
     }
   };
 
+  const handleCourseDelete = async (_id: string) => {
+    if (!_id) {
+      setCourseMessage("Course id is required for deletion.");
+      return;
+    }
+
+    setCourseMessage("Deleting course...");
+
+    const result = await submitToBackend(
+      `/college_admin/delete-course/${_id}`,
+      {},
+      setCourseMessage,
+      "DELETE",
+    );
+
+    if (result.success) {
+      setCourses((prevCourses) =>
+        prevCourses.filter((course) => course._id !== _id),
+      );
+      setCourseMessage("Course deleted successfully!");
+    }
+  };
+  const handleProgramDelete = async (_id: string) => {
+    if (!_id) {
+      setProgrammeMessage("Program id is required for deletion.");
+      return;
+    }
+
+    setCourseMessage("Deleting course...");
+
+    const result = await submitToBackend(
+      `/college_admin/delete-program/${_id}`,
+      {},
+      setProgrammeMessage,
+      "DELETE",
+    );
+
+    if (result.success) {
+      setProgrammes((prevProgrammes) =>
+        prevProgrammes.filter((program) => program._id !== _id),
+      );
+      setProgrammeMessage("Program and allocations deleted successfully!");
+    }
+  };
   return {
     handleLevelChange,
     handleMinMaxChange,
@@ -496,5 +540,7 @@ export const useCollegeAdminHandlers = ({
     handleAssignTeacher,
     handleCourseCreate,
     handleCourseAssignment,
+    handleCourseDelete,
+    handleProgramDelete,
   };
 };

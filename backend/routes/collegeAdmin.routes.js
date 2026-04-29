@@ -5,6 +5,8 @@ import {
   AddTeacher,
   AssignTeacherToCourse,
   AssignTeacherToProgram,
+  deleteCourse,
+  deleteProgram,
   getCollegeDetailsById,
   updateCollegeAttainmentConfig,
   UpdateProgrammeOutcomes,
@@ -20,4 +22,7 @@ router.post("/assign-teacher-program", AssignTeacherToProgram);
 router.post("/assign-teacher-course", AssignTeacherToCourse);
 router.put("/update-pos", UpdateProgrammeOutcomes);
 router.post("/add-course", AddCourse);
+
+router.delete("/delete-course/:courseId", deleteCourse);
+router.delete("/delete-program/:programmeId", deleteProgram);
 export default router;

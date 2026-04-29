@@ -17,9 +17,7 @@ import { WorkspaceMode } from "@/components/college-admin/types";
 import { useCollegeAdminData } from "@/components/college-admin/hooks/useCollegeAdminData";
 import { useCollegeAdminFilters } from "@/components/college-admin/hooks/useCollegeAdminFilters";
 import { useCollegeAdminHandlers } from "@/components/college-admin/hooks/useCollegeAdminHandlers";
-import {
-  mergeOptionsWithCurrentValue,
-} from "@/components/college-admin/utils/attainmentHelpers";
+import { mergeOptionsWithCurrentValue } from "@/components/college-admin/utils/attainmentHelpers";
 import AttainmentWorkspace from "@/components/college-admin/workspaces/AttainmentWorkspace";
 import ProgramOutcomesWorkspace from "@/components/college-admin/workspaces/ProgramOutcomesWorkspace";
 import ProgrammeManagementWorkspace from "@/components/college-admin/workspaces/ProgrammeManagementWorkspace";
@@ -33,7 +31,7 @@ const submitToBackend = async (
   endpoint: string,
   payload: unknown,
   setPageMessage: (message: string) => void,
-  method: "POST" | "PUT" | "PATCH" = "POST",
+  method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST",
 ) => {
   try {
     const response = await fetch(`${SERVER_URL}${endpoint}`, {
@@ -136,6 +134,11 @@ export default function CollegeAdminPage() {
       icon: GraduationCap,
     },
     {
+      id: "courseManagement",
+      label: "Course Management",
+      icon: BookMarked,
+    },
+    {
       id: "facultyManagement",
       label: "Faculty Management",
       icon: UserRound,
@@ -148,11 +151,6 @@ export default function CollegeAdminPage() {
     {
       id: "courseAllocation",
       label: "Course Allocation",
-      icon: BookMarked,
-    },
-    {
-      id: "courseManagement",
-      label: "Course Management",
       icon: BookMarked,
     },
   ];
@@ -280,6 +278,31 @@ export default function CollegeAdminPage() {
                 programmeMessage={data.programmeMessage}
                 filteredProgrammeRows={filters.filteredProgrammeRows}
                 handleProgrammeCreate={handlers.handleProgrammeCreate}
+                handleProgrammeDelete={handlers.handleProgramDelete}
+              />
+            )}
+
+            {activeWorkspace === "courseManagement" && (
+              <CourseManagementWorkspace
+                captionClass={captionClass}
+                panelTitleClass={panelTitleClass}
+                fieldClass={fieldClass}
+                primaryButtonClass={primaryButtonClass}
+                tableHeadClass={tableHeadClass}
+                newCourse={data.newCourse}
+                setNewCourse={data.setNewCourse}
+                courseMessage={data.courseMessage}
+                programmes={data.programmes}
+                courseSearch={filters.courseSearch}
+                setCourseSearch={filters.setCourseSearch}
+                courseProgrammeFilter={filters.courseProgrammeFilter}
+                setCourseProgrammeFilter={filters.setCourseProgrammeFilter}
+                courseSemesterFilter={filters.courseSemesterFilter}
+                setCourseSemesterFilter={filters.setCourseSemesterFilter}
+                uniqueSemesters={filters.uniqueSemesters}
+                filteredCoursesByProgramme={filters.filteredCoursesByProgramme}
+                handleCourseCreate={handlers.handleCourseCreate}
+                handleCourseDelete={handlers.handleCourseDelete}
               />
             )}
 
@@ -353,31 +376,10 @@ export default function CollegeAdminPage() {
                 courseAssignment={data.courseAssignment}
                 setCourseAssignment={data.setCourseAssignment}
                 courseAllocationMessage={data.courseAllocationMessage}
-                filteredCourseAllocationRows={filters.filteredCourseAllocationRows}
+                filteredCourseAllocationRows={
+                  filters.filteredCourseAllocationRows
+                }
                 handleCourseAssignment={handlers.handleCourseAssignment}
-              />
-            )}
-
-            {activeWorkspace === "courseManagement" && (
-              <CourseManagementWorkspace
-                captionClass={captionClass}
-                panelTitleClass={panelTitleClass}
-                fieldClass={fieldClass}
-                primaryButtonClass={primaryButtonClass}
-                tableHeadClass={tableHeadClass}
-                newCourse={data.newCourse}
-                setNewCourse={data.setNewCourse}
-                courseMessage={data.courseMessage}
-                programmes={data.programmes}
-                courseSearch={filters.courseSearch}
-                setCourseSearch={filters.setCourseSearch}
-                courseProgrammeFilter={filters.courseProgrammeFilter}
-                setCourseProgrammeFilter={filters.setCourseProgrammeFilter}
-                courseSemesterFilter={filters.courseSemesterFilter}
-                setCourseSemesterFilter={filters.setCourseSemesterFilter}
-                uniqueSemesters={filters.uniqueSemesters}
-                filteredCoursesByProgramme={filters.filteredCoursesByProgramme}
-                handleCourseCreate={handlers.handleCourseCreate}
               />
             )}
           </section>
