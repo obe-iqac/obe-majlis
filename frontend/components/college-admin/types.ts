@@ -13,6 +13,7 @@ export type AttainmentRange = {
 };
 
 export type ProgramOutcome = {
+  _id?: string;
   id: string;
   po: string;
 };

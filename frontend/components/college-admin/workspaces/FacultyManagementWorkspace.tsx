@@ -1,11 +1,10 @@
 import { FormEvent, Fragment, useState } from "react";
-import { Edit3, Save, Search, UserSquare2, X } from "lucide-react";
+import { Save, Search, UserSquare2, X } from "lucide-react";
 import {
   AssignmentStatusFilter,
   FacultyRoleFilter,
   FacultyRow,
 } from "../types";
-import { Trash } from "lucide-react";
 
 type EditableFaculty = {
   name: string;
@@ -372,35 +371,38 @@ export default function FacultyManagementWorkspace({
                         "Inactive"
                       )}
                     </td>
-                    <td className="px-3 py-4 text-slate-700">
-                      {isEditing ? (
-                        <span className="inline-flex h-9 items-center rounded-md bg-[#e7eef3] px-3 text-sm font-semibold text-[#25425a]">
-                          Editing
-                        </span>
-                      ) : (
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-2">
+                        {isEditing ? (
+                          <span className="inline-flex h-9 items-center rounded-md bg-[#e7eef3] px-3 text-sm font-semibold text-[#25425a]">
+                            Editing
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => beginEdit(row)}
+                            className="inline-flex h-9 items-center justify-center rounded-md bg-[#eef3f6] px-3 text-sm font-semibold text-[#25425a] transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20"
+                          >
+                            Edit
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => beginEdit(row)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#eef3f6] px-3 text-sm font-semibold text-[#25425a] transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Are you sure you want to terminate ${row.teacher.name}`,
+                              )
+                            ) {
+                              handleTeacherDelete(row.teacher._id);
+                            }
+                          }}
+                          className="inline-flex h-9 items-center justify-center rounded-md bg-red-50 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/20"
                         >
-                          Edit
+                          Terminate
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Are you sure you want to terminate ${row.teacher.name}`,
-                            )
-                          ) {
-                            handleTeacherDelete(row.teacher._id);
-                          }
-                        }}
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md  px-3 text-sm font-semibold text-red-500 transition hover:bg-[#e3ebf1] focus:outline-none focus:ring-2 focus:ring-[#2f5f86]/20"
-                      >
-                        TERMINATE
-                      </button>
+                      </div>
                     </td>
                   </tr>
                   {isEditing && (

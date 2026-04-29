@@ -259,6 +259,8 @@ export default function CollegeAdminPage() {
                 poMessage={data.poMessage}
                 pos={data.pos}
                 handleAddPO={handlers.handleAddPO}
+                handleDeletePO={handlers.handleDeletePO}
+                handleEditPO={handlers.handleUpdatePO}
               />
             )}
 

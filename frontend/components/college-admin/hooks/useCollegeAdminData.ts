@@ -120,6 +120,7 @@ export const useCollegeAdminData = () => {
           .map(
             (
               poItem: {
+                _id?: string;
                 id?: string;
                 po?: string;
                 label?: string;
@@ -127,6 +128,7 @@ export const useCollegeAdminData = () => {
               },
               index: number,
             ) => ({
+              _id: poItem._id ?? poItem.label ?? "",
               id: poItem.id ?? poItem.label ?? `PO${index + 1}`,
               po: poItem.po ?? poItem.value ?? "",
             }),

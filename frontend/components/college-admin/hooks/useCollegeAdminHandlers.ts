@@ -694,6 +694,55 @@ export const useCollegeAdminHandlers = ({
     }
   };
 
+  const handleDeletePO = async (_id: string, id: string) => {
+    console.log(`Attempting to delete PO with _id: ${_id} and id: ${id}`);
+    if (!_id) {
+      setPoMessage("PO id is required for deletion.");
+      return;
+    }
+    const posWithoutDeleted = pos.filter((po) => po._id !== _id);
+    console.log("POs after deletion:", posWithoutDeleted);
+    const normalizedPOs = posWithoutDeleted.map((po, index) => ({
+      ...po,
+      id: `PO${index + 1}`,
+    }));
+    console.log("Normalized POs after deletion:", normalizedPOs);
+    const result = await submitToBackend(
+      "/college_admin/update-pos",
+      { pos: normalizedPOs },
+      setPoMessage,
+      "PUT",
+    );
+
+    if (result.success) {
+      setPos(normalizedPOs);
+      setNewPOValue("");
+      setPoMessage(
+        `${id} deleted. Save attainment configuration to submit changes.`,
+      );
+    }
+  };
+
+  const handleUpdatePO = async (index: number, newValue: string) => {
+    const updatedPOs = [...pos];
+    updatedPOs[index] = { ...updatedPOs[index], po: newValue };
+    const result = await submitToBackend(
+      "/college_admin/update-pos",
+      { pos: updatedPOs },
+      setPoMessage,
+      "PUT",
+    );
+    if (!result.success) {
+      setPoMessage("Failed to update PO. Please try again.");
+      return;
+    }
+
+    setPos(updatedPOs);
+
+    setPoMessage(
+      `${updatedPOs[index].id} updated. Save attainment configuration to submit changes.`,
+    );
+  };
   return {
     handleLevelChange,
     handleMinMaxChange,
@@ -713,5 +762,7 @@ export const useCollegeAdminHandlers = ({
     handleRevokeCourse,
     handleUpdateUser,
     handleDeleteTeacher,
+    handleDeletePO,
+    handleUpdatePO,
   };
 };
